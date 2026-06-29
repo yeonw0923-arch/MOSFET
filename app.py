@@ -309,20 +309,18 @@ with col_mid:
     # 차단: 소량의 위로 굽음 (공핍), E_v가 E_F를 넘지 않도록 제한
     if device == "NMOS":
         if region == "Cutoff":
-            # 차단: V_GS < V_TH → 공핍층만 있고 반전층 없음
-            # E_c는 거의 수평 (굽힘 없음), V_DS에 의한 드레인 쪽 강하만 있음
             gate_bend = 0.0
         else:
-            # 반전층 형성: 채널 E_c가 E_F 근처까지 내려옴
-            # ef_src_val ≈ 1.03, E0 = 2.0 → gate_bend ≈ -0.87
-            gate_bend = ef_src_val - E0 + 0.10   # 음수
-            gate_bend = max(gate_bend, -(Eg * 0.8))
+            # 반전층: 채널 E_c가 E_F보다 살짝 위까지만 내려옴
+            # gate_bend * sin(π) 최대 = gate_bend (채널 중앙)
+            # 목표: 채널 중앙 E_c ≈ ef_src_val + 0.3 (E_F 위)
+            # band_drop 기여 빼면 gate_bend ≈ -0.35
+            gate_bend = -0.35
     else:
         if region == "Cutoff":
             gate_bend = 0.0
         else:
-            gate_bend = ef_src_val - E0 - 0.10   # PMOS: 양수
-            gate_bend = min(gate_bend, +(Eg * 0.8))
+            gate_bend = +0.35   # PMOS: 반대 방향
 
     # ── x 좌표 ────────────────────────────────────────────
     x_src = np.linspace(0.0, 1.0, 50)
