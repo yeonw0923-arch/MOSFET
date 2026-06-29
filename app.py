@@ -120,17 +120,15 @@ bjt_svg = f"""<svg width="560" height="135" style="display:block;max-width:100%;
       <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5"/></marker>
   </defs>
 
-  <!-- ── 소자 블록: 에너지밴드와 동일한 배경색 ── -->
+  <!-- ── 소자 블록 ── -->
   <rect x="80"  y="18" width="110" height="44" rx="3"
         fill="rgba(173,216,230,0.6)" stroke="#3a7abf" stroke-width="1.5"/>
   <text x="135" y="37" text-anchor="middle" fill="#1a3a5c" font-size="13" font-family="monospace" font-weight="bold">{el}</text>
   <text x="135" y="53" text-anchor="middle" fill="#1565C0" font-size="9"  font-family="monospace">Emitter</text>
-
   <rect x="190" y="18" width="70"  height="44" rx="0"
         fill="rgba(255,182,193,0.6)" stroke="#bf3a8a" stroke-width="1.5"/>
   <text x="225" y="37" text-anchor="middle" fill="#7B1818" font-size="13" font-family="monospace" font-weight="bold">{bl}</text>
   <text x="225" y="53" text-anchor="middle" fill="#B71C1C" font-size="9"  font-family="monospace">Base</text>
-
   <rect x="260" y="18" width="110" height="44" rx="3"
         fill="rgba(144,238,144,0.6)" stroke="#3abf3a" stroke-width="1.5"/>
   <text x="315" y="37" text-anchor="middle" fill="#1B5E20" font-size="13" font-family="monospace" font-weight="bold">{cl}</text>
@@ -145,39 +143,38 @@ bjt_svg = f"""<svg width="560" height="135" style="display:block;max-width:100%;
   <text x="225"  y="93" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">B</text>
 
   <!-- ── V_BE 배터리 회로 ──
-    NPN: 순방향(V_BE>0) → E(-) B(+) / 역방향(V_BE<0) → E(+) B(-)
-    PNP: 순방향(V_EB>0=V_BE<0) → E(+) B(-) / 역방향 → E(-) B(+)
-    즉 E쪽 + : NPN역방향 or PNP순방향 → be_fwd XOR (bjt=='NPN')
+    E쪽이 + : NPN역방향 or PNP순방향
+    긴선(+극)이 E쪽에 오면: 120=긴, 127=짧, 134=긴, 141=짧
+    짧은선(-극)이 E쪽에 오면: 120=짧, 127=긴, 134=짧, 141=긴
   -->
   <line x1="30"  y1="40"  x2="30"  y2="110" stroke="#555" stroke-width="1.2"/>
   <line x1="30"  y1="110" x2="118" y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="120" y1="104" x2="120" y2="116" stroke="#1565C0" stroke-width="2.5"/>
-  <line x1="127" y1="107" x2="127" y2="113" stroke="#1565C0" stroke-width="1.5"/>
-  <line x1="134" y1="104" x2="134" y2="116" stroke="#1565C0" stroke-width="2.5"/>
-  <line x1="141" y1="107" x2="141" y2="113" stroke="#1565C0" stroke-width="1.5"/>
+  {"<!-- E쪽 + : 긴선부터 -->" if not be_fwd else "<!-- E쪽 - : 짧은선부터 -->"}
+  <line x1="120" y1="{'104' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '107'}" x2="120" y2="{'116' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '113'}" stroke="#1565C0" stroke-width="2.5"/>
+  <line x1="127" y1="{'107' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '104'}" x2="127" y2="{'113' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '116'}" stroke="#1565C0" stroke-width="1.5"/>
+  <line x1="134" y1="{'104' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '107'}" x2="134" y2="{'116' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '113'}" stroke="#1565C0" stroke-width="2.5"/>
+  <line x1="141" y1="{'107' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '104'}" x2="141" y2="{'113' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '116'}" stroke="#1565C0" stroke-width="1.5"/>
   <line x1="141" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
   <line x1="225" y1="110" x2="225" y2="82"  stroke="#555" stroke-width="1.2"/>
-  <!-- E쪽 극성: NPN순방향=E(-), NPN역방향=E(+), PNP순방향=E(+), PNP역방향=E(-) -->
-  <text x="112" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"+" if (bjt_type=="NPN" and not be_fwd) or (bjt_type=="PNP" and be_fwd) else "−"}</text>
-  <text x="149" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"−" if (bjt_type=="NPN" and not be_fwd) or (bjt_type=="PNP" and be_fwd) else "+"}</text>
+  <text x="112" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"+" if not be_fwd else "−"}</text>
+  <text x="149" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"−" if not be_fwd else "+"}</text>
   <text x="140" y="128" text-anchor="middle" fill="#1565C0" font-size="9" font-family="monospace" font-weight="bold">{vl1} ({'순방향' if be_fwd else '역방향'})</text>
 
   <!-- ── V_BC 배터리 회로 ──
-    NPN: 역방향(V_BC<0) → C(-) B(+) / 순방향(V_BC>0) → C(+) B(-)
-    PNP: 역방향(V_CB>0=V_BC<0) → C(+) B(-) / 순방향 → C(-) B(+)
-    C쪽 + : NPN순방향 or PNP역방향
+    C쪽이 + : NPN순방향 or PNP역방향
+    긴선(+극)이 C쪽에 오면: 330=긴, 323=짧, 316=긴, 309=짧
+    짧은선(-극)이 C쪽에 오면: 330=짧, 323=긴, 316=짧, 309=긴
   -->
   <line x1="400" y1="40"  x2="400" y2="110" stroke="#555" stroke-width="1.2"/>
   <line x1="400" y1="110" x2="332" y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="330" y1="104" x2="330" y2="116" stroke="#C62828" stroke-width="2.5"/>
-  <line x1="323" y1="107" x2="323" y2="113" stroke="#C62828" stroke-width="1.5"/>
-  <line x1="316" y1="104" x2="316" y2="116" stroke="#C62828" stroke-width="2.5"/>
-  <line x1="309" y1="107" x2="309" y2="113" stroke="#C62828" stroke-width="1.5"/>
+  <line x1="330" y1="{'104' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '107'}" x2="330" y2="{'116' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '113'}" stroke="#B71C1C" stroke-width="2.5"/>
+  <line x1="323" y1="{'107' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '104'}" x2="323" y2="{'113' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '116'}" stroke="#B71C1C" stroke-width="1.5"/>
+  <line x1="316" y1="{'104' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '107'}" x2="316" y2="{'116' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '113'}" stroke="#B71C1C" stroke-width="2.5"/>
+  <line x1="309" y1="{'107' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '104'}" x2="309" y2="{'113' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '116'}" stroke="#B71C1C" stroke-width="1.5"/>
   <line x1="309" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
-  <!-- C쪽 극성: NPN순방향=C(+), NPN역방향=C(-), PNP순방향=C(-), PNP역방향=C(+) -->
-  <text x="338" y="108" text-anchor="middle" fill="#C62828" font-size="13" font-weight="bold">{"+" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "−"}</text>
-  <text x="301" y="108" text-anchor="middle" fill="#C62828" font-size="13" font-weight="bold">{"−" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "+"}</text>
-  <text x="312" y="128" text-anchor="middle" fill="#C62828" font-size="9" font-family="monospace" font-weight="bold">{vl2} ({'순방향' if bc_fwd else '역방향'})</text>
+  <text x="338" y="108" text-anchor="middle" fill="#B71C1C" font-size="13" font-weight="bold">{"+" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "−"}</text>
+  <text x="301" y="108" text-anchor="middle" fill="#B71C1C" font-size="13" font-weight="bold">{"−" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "+"}</text>
+  <text x="312" y="128" text-anchor="middle" fill="#B71C1C" font-size="9" font-family="monospace" font-weight="bold">{vl2} ({'순방향' if bc_fwd else '역방향'})</text>
 
   <!-- BJT 타입 -->
   <text x="490" y="32" fill="#555" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
@@ -230,8 +227,8 @@ with row1_right:
     style="background:#ffffff;border-radius:8px;display:block;width:100%;border:1px solid #eaeaea;
            box-shadow:0 2px 8px rgba(0,0,0,0.05);"></canvas>
   <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
-    <span style="color:#00E6FF;font-weight:700;">● 전자 (Electron)</span>&nbsp;&nbsp;
-    <span style="color:#FF7043;font-weight:700;">● 정공 (Hole)</span>
+    <span style="color:#1565C0;font-weight:700;">● 전자 (Electron)</span>&nbsp;&nbsp;
+    <span style="color:#B71C1C;font-weight:700;">● 정공 (Hole)</span>
   </div>
 </div>
 <script>
@@ -313,7 +310,7 @@ with row1_right:
     // ── 파티클 업데이트 ────────────────────────────────────────────
     pts.forEach(p => {{
       // 주 캐리어 색 (NPN: 전자=파랑, 정공=빨강 / PNP 동일)
-      const col = p.t==='e' ? '#00E6FF' : '#FF7043';
+      const col = p.t==='e' ? '#1565C0' : '#B71C1C';
       ctx.shadowBlur=4; ctx.shadowColor=col; ctx.fillStyle=col;
       ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
       ctx.shadowBlur=0;
@@ -380,22 +377,20 @@ with row1_right:
 
       }} else if(MODE==='saturation') {{
         // ── 포화: 양쪽 접합 모두 순방향 ──────────────────────────
-        // 주 캐리어가 양방향으로 범람 (방향성 약함, 확산 지배)
-        // NPN: 전자 양방향, 정공은 베이스에서 양방향 넘침
-        // PNP: 정공 양방향, 전자는 베이스에서 양방향 넘침
+        // 이미터→컬렉터 + 컬렉터→이미터 방향 동시 흐름
+        // 각 파티클은 초기화 시 d=1 or d=-1 로 방향 배정됨
         const mainType = BJT==='NPN' ? 'e' : 'h';
         if(p.t===mainType) {{
-          // 주 캐리어: 넓은 확산 (방향 랜덤)
-          vx = (Math.random()-0.5)*4.0;
-          vy = (Math.random()-0.5)*2.0;
+          vx = p.d * 3.0;
+          vy = (Math.random()-0.5)*1.0;
+          if(p.x > W + 5) p.x = -5;
+          if(p.x < -5)    p.x = W + 5;
         }} else {{
-          // 소수 캐리어: 베이스 바깥으로도 약하게 넘침
-          vx = (Math.random()-0.5)*2.5;
+          vx = p.d * 2.0;
           vy = (Math.random()-0.5)*1.5;
+          if(p.x > W + 5) p.x = -5;
+          if(p.x < -5)    p.x = W + 5;
         }}
-        // 경계: 전체 너비 내에서 반사
-        if(p.x>W-4) p.x=W-4;
-        if(p.x<4)   p.x=4;
 
       }} else if(MODE==='reverse_active') {{
         // ── 역방향 활성: 순방향 활성의 반대 ─────────────────────
@@ -477,12 +472,12 @@ with row2_left:
     np.random.seed(42)
     if bjt_type=="NPN":
         fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2,2.2,16),y=E_C_Emitter+np.random.uniform(0.02,0.15,16),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),name='전자(e⁻)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.4,4.6,10),y=E_V_Base-np.random.uniform(0.02,0.15,10),mode='markers',marker=dict(color='#C62828',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.4,4.6,10),y=E_V_Base-np.random.uniform(0.02,0.15,10),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
         fig_band.add_trace(go.Scatter(x=np.random.uniform(5.8,7.8,12),y=E_C_Collector+np.random.uniform(0.02,0.15,12),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),showlegend=False))
     else:
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2,2.2,16),y=E_V_Emitter-np.random.uniform(0.02,0.15,16),mode='markers',marker=dict(color='#C62828',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2,2.2,16),y=E_V_Emitter-np.random.uniform(0.02,0.15,16),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
         fig_band.add_trace(go.Scatter(x=np.random.uniform(3.4,4.6,10),y=E_C_Base+np.random.uniform(0.02,0.15,10),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),name='전자(e⁻)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(5.8,7.8,12),y=E_V_Collector-np.random.uniform(0.02,0.15,12),mode='markers',marker=dict(color='#C62828',size=10,line=dict(color='#7B1818',width=1.5)),showlegend=False))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(5.8,7.8,12),y=E_V_Collector-np.random.uniform(0.02,0.15,12),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),showlegend=False))
     fig_band.add_vline(x=2.8,line=dict(color='gray',width=1,dash='dot'))
     fig_band.add_vline(x=5.2,line=dict(color='gray',width=1,dash='dot'))
     fig_band.update_layout(
