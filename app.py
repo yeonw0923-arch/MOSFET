@@ -101,33 +101,63 @@ desc_map = {
 # ── SVG 소자 구조도 ───────────────────────────────────────────────────
 if bjt_type=="NPN":
     ef,es,el="#1a3a5c","#3a7abf","N⁺"; bf,bs,bl,bt="#4a1a3a","#bf3a8a","P","#f9c"
-    cf,cs,cl="#1a3a1a","#3abf3a","N"; vl1,vl2=f"V_BE={V_be:.2f}V",f"V_BC={V_bc:.2f}V"; vc1,vc2="#7ac","#7ca"
+    cf,cs,cl="#1a3a1a","#3abf3a","N"; vl1,vl2=f"V_BE={V_be:.2f}V",f"V_BC={V_bc:.2f}V"
 else:
     ef,es,el="#5c1a1a","#bf3a3a","P⁺"; bf,bs,bl,bt="#1a3a2a","#3abf6a","N","#9fc"
-    cf,cs,cl="#3a2a1a","#bf8a3a","P"; vl1,vl2=f"V_EB={V_be:.2f}V",f"V_CB={V_bc:.2f}V"; vc1,vc2="#ca7","#a7c"
+    cf,cs,cl="#3a2a1a","#bf8a3a","P"; vl1,vl2=f"V_EB={V_be:.2f}V",f"V_CB={V_bc:.2f}V"
 
-bjt_svg = f"""<svg width="500" height="80" style="display:block;max-width:100%;">
-  <defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-    <path d="M2 1L8 5L2 9" fill="none" stroke="#aaa" stroke-width="1.5"/></marker></defs>
-  <rect x="55"  y="14" width="105" height="46" rx="4" fill="{ef}" stroke="{es}" stroke-width="1.5"/>
-  <text x="107" y="34" text-anchor="middle" fill="#cde" font-size="12" font-family="monospace" font-weight="bold">{el}</text>
-  <text x="107" y="50" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Emitter</text>
-  <rect x="183" y="14" width="74"  height="46" rx="0" fill="{bf}" stroke="{bs}" stroke-width="1.5"/>
-  <text x="220" y="34" text-anchor="middle" fill="{bt}" font-size="12" font-family="monospace" font-weight="bold">{bl}</text>
-  <text x="220" y="50" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Base</text>
-  <rect x="280" y="14" width="105" height="46" rx="4" fill="{cf}" stroke="{cs}" stroke-width="1.5"/>
-  <text x="332" y="34" text-anchor="middle" fill="#cec" font-size="12" font-family="monospace" font-weight="bold">{cl}</text>
-  <text x="332" y="50" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Collector</text>
-  <line x1="15" y1="37" x2="53" y2="37" stroke="#aaa" stroke-width="1.5" marker-end="url(#ar2)"/>
-  <text x="8"  y="41" text-anchor="middle" fill="#ddd" font-size="12" font-family="monospace" font-weight="bold">E</text>
-  <line x1="220" y1="60" x2="220" y2="70" stroke="#aaa" stroke-width="1.5"/>
-  <text x="220" y="79" text-anchor="middle" fill="#ddd" font-size="12" font-family="monospace" font-weight="bold">B</text>
-  <line x1="385" y1="37" x2="415" y2="37" stroke="#aaa" stroke-width="1.5"/>
-  <text x="426" y="41" text-anchor="middle" fill="#ddd" font-size="12" font-family="monospace" font-weight="bold">C</text>
-  <text x="140" y="10" text-anchor="middle" fill="{vc1}" font-size="9" font-family="monospace">{vl1}</text>
-  <text x="307" y="10" text-anchor="middle" fill="{vc2}" font-size="9" font-family="monospace">{vl2}</text>
-  <text x="452" y="32" fill="#ccc" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
-  <text x="452" y="46" fill="#888" font-size="9"  font-family="monospace">BJT</text>
+# BE/BC 접합 순방향/역방향 표기
+be_label = "순방향 ▶" if be_fwd else "◀ 역방향"
+bc_label = "순방향 ▶" if bc_fwd else "◀ 역방향"
+be_svg_color = "#e74c3c" if be_fwd else "#3498db"
+bc_svg_color = "#e74c3c" if bc_fwd else "#3498db"
+be_ax1, be_ax2 = (160, 183) if be_fwd else (183, 160)
+bc_ax1, bc_ax2 = (257, 280) if bc_fwd else (280, 257)
+
+bjt_svg = f"""<svg width="500" height="105" style="display:block;max-width:100%;">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#aaa" stroke-width="1.5"/></marker>
+    <marker id="arBE" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="{be_svg_color}" stroke-width="1.5"/></marker>
+    <marker id="arBC" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="{bc_svg_color}" stroke-width="1.5"/></marker>
+  </defs>
+  <!-- 소자 블록 -->
+  <rect x="55"  y="20" width="105" height="46" rx="4" fill="{ef}" stroke="{es}" stroke-width="1.5"/>
+  <text x="107" y="40" text-anchor="middle" fill="#cde" font-size="12" font-family="monospace" font-weight="bold">{el}</text>
+  <text x="107" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Emitter</text>
+  <rect x="183" y="20" width="74"  height="46" rx="0" fill="{bf}" stroke="{bs}" stroke-width="1.5"/>
+  <text x="220" y="40" text-anchor="middle" fill="{bt}" font-size="12" font-family="monospace" font-weight="bold">{bl}</text>
+  <text x="220" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Base</text>
+  <rect x="280" y="20" width="105" height="46" rx="4" fill="{cf}" stroke="{cs}" stroke-width="1.5"/>
+  <text x="332" y="40" text-anchor="middle" fill="#cec" font-size="12" font-family="monospace" font-weight="bold">{cl}</text>
+  <text x="332" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Collector</text>
+  <!-- E/B/C 단자 -->
+  <line x1="15" y1="43" x2="53" y2="43" stroke="#aaa" stroke-width="1.5" marker-end="url(#ar2)"/>
+  <text x="8"  y="47" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">E</text>
+  <line x1="220" y1="66" x2="220" y2="76" stroke="#aaa" stroke-width="1.5"/>
+  <text x="220" y="86" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">B</text>
+  <line x1="385" y1="43" x2="415" y2="43" stroke="#aaa" stroke-width="1.5"/>
+  <text x="426" y="47" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">C</text>
+  <!-- BE 접합 바이어스 화살표 + 라벨 -->
+  <line x1="{be_ax1}" y1="43" x2="{be_ax2}" y2="43"
+        stroke="{be_svg_color}" stroke-width="2.2" marker-end="url(#arBE)"/>
+  <rect x="98" y="3" width="84" height="14" rx="3" fill="{be_svg_color}" opacity="0.12"/>
+  <text x="140" y="13" text-anchor="middle" fill="{be_svg_color}"
+        font-size="9" font-family="monospace" font-weight="bold">{vl1}  {be_label}</text>
+  <!-- BC 접합 바이어스 화살표 + 라벨 -->
+  <line x1="{bc_ax1}" y1="43" x2="{bc_ax2}" y2="43"
+        stroke="{bc_svg_color}" stroke-width="2.2" marker-end="url(#arBC)"/>
+  <rect x="265" y="3" width="84" height="14" rx="3" fill="{bc_svg_color}" opacity="0.12"/>
+  <text x="307" y="13" text-anchor="middle" fill="{bc_svg_color}"
+        font-size="9" font-family="monospace" font-weight="bold">{vl2}  {bc_label}</text>
+  <!-- BJT 타입 + 현재 모드 -->
+  <text x="452" y="36" fill="#555" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
+  <text x="452" y="50" fill="#888" font-size="9"  font-family="monospace">BJT</text>
+  <rect x="55" y="72" width="330" height="16" rx="3" fill="{mode_color}" opacity="0.13"/>
+  <text x="220" y="83" text-anchor="middle" fill="{mode_color}"
+        font-size="9.5" font-family="monospace" font-weight="bold">{mode} ({mode_en})</text
 </svg>"""
 
 # ════════════════════════════════════════════════════════════════════
