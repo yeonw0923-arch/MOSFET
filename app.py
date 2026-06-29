@@ -204,46 +204,62 @@ with col1:
     #   결과: 이미터/컬렉터 수평, 베이스 가운데가 볼록 올라가는 모양
     # ══════════════════════════════════════════
 
-    E_c_E = 2.0   # 이미터 E_c 기준 (고정)
+    # ══════════════════════════════════════════
+    #  E_c 레벨 설계 (교안 그림 2-6/2-8/2-9)
+    #
+    #  NPN 열평형 기준 레벨:
+    #   이미터(N+): E_c_E = 2.0  (높음, N형 도핑 높아서 E_F가 E_c 가까이)
+    #   베이스(P):  E_c_B = 1.4  (P형이라 낮음)
+    #   컬렉터(N):  E_c_C = 1.7  (N형, 이미터보다 낮고 베이스보다 높음)
+    #   → 열평형: 이미터 > 컬렉터 > 베이스 순서
+    #
+    #  바이어스 인가 시 각 영역 E_c 레벨 변화:
+    #   BE 순방향(V_be>0): 베이스 E_c 상승 (장벽 낮아짐 = 두 레벨이 가까워짐)
+    #   BE 역방향(V_be<0): 베이스 E_c 하강 (장벽 높아짐 = 더 멀어짐)
+    #   BC 역방향(V_bc<0): 컬렉터 E_c 상승 (역방향 → 컬렉터가 더 올라감)
+    #   BC 순방향(V_bc>0): 컬렉터 E_c 하강 (순방향 → 컬렉터가 내려옴)
+    #
+    #  순방향 활성 결과:
+    #   베이스 E_c 올라감 + 컬렉터 E_c 도 올라감
+    #   but 이미터(2.0) > 컬렉터(~1.7+α) > 베이스(~1.4+α) 순서 유지
+    #   → 전자가 이미터→베이스→컬렉터로 내리막 흐름
+    # ══════════════════════════════════════════
 
-    # BE 장벽 높이: 열평형 phi_bi 기준, 바이어스로 증감
-    #   순방향(V_be>0): phi_bi - V_be → 낮아짐
-    #   역방향(V_be<0): phi_bi - V_be → 높아짐 (V_be 음수라 더해짐)
-    be_barrier = phi_bi - np.clip(V_be, -1.5, phi_bi)
-    be_barrier = max(0.05, be_barrier)   # 최소값 보장
+    # 열평형 기준 레벨
+    E_c_E_eq = 2.0
+    E_c_B_eq = 1.4
+    E_c_C_eq = 1.7
 
-    # BC 장벽 높이: 역방향(V_bc<0)이면 높아짐
-    bc_barrier = phi_bi - np.clip(V_bc, -3.0, phi_bi)
-    bc_barrier = max(0.05, bc_barrier)
+    # 바이어스에 의한 레벨 변화 (클램프로 물리적 범위 제한)
+    v_be_c = np.clip(V_be, -1.0, 0.7)
+    v_bc_c = np.clip(V_bc, -3.0, 0.7)
 
-    # 베이스 E_c: P형이므로 이미터보다 낮음 (고정 offset -0.3 eV)
-    E_c_B = E_c_E - 0.3
+    # BE 순방향 → 베이스 E_c 상승 (이미터 E_c는 고정)
+    E_c_E = E_c_E_eq
+    E_c_B = E_c_B_eq + v_be_c * 0.6   # 순방향이면 올라감
 
-    # 컬렉터 E_c: BC 역방향이면 올라가고, 순방향이면 내려감
-    # 역방향(V_bc<0): E_c_C > E_c_B (컬렉터가 베이스보다 높음)
-    # 순방향(V_bc>0): E_c_C < E_c_B
-    E_c_C = E_c_B + (bc_barrier - phi_bi) * 1.2
+    # BC 역방향(v_bc<0) → 컬렉터 E_c 상승
+    # BC 순방향(v_bc>0) → 컬렉터 E_c 하강
+    E_c_C = E_c_C_eq - v_bc_c * 0.6   # 역방향(음수)이면 올라감
+
+    # 접합 장벽 peak 높이 (접합부에서 에너지가 살짝 볼록하게 솟는 부분)
+    # 작게 설정 (0.1~0.2 eV) - 너무 크면 그림이 어색
+    be_peak_h = max(0.05, phi_bi - np.clip(V_be, -1.0, phi_bi)) * 0.25
+    bc_peak_h = max(0.05, phi_bi - np.clip(V_bc, -3.0, phi_bi)) * 0.25
 
     # ── 이미터: 수평 ──────────────────────────
     ec_e = np.full_like(x_e, E_c_E)
 
-    # ── BE 접합 전이 (이미터→베이스) ─────────
-    # 장벽 높이 be_barrier만큼 peak가 생기고 베이스 레벨로 내려옴
-    # sigmoid로 전이, peak는 접합 경계(x=2.8)에서 발생
-    t_be  = np.linspace(-5, 5, len(x_b))
-    # 왼쪽 절반: 이미터→peak (장벽 올라감)
-    # 오른쪽 절반: peak→베이스 (장벽 내려옴)
-    half  = len(x_b) // 2
-    # BE 장벽 peak = E_c_E + be_barrier
-    peak_BE = E_c_E + be_barrier
-    ec_b_left  = np.linspace(E_c_E,   peak_BE, half)
-    ec_b_right = np.linspace(peak_BE, E_c_B,   len(x_b) - half)
+    # ── BE 접합 전이: 이미터→(peak)→베이스 ───
+    half_b = len(x_b) // 2
+    peak_BE = max(E_c_E, E_c_B) + be_peak_h
+    ec_b_left  = np.linspace(E_c_E,   peak_BE, half_b)
+    ec_b_right = np.linspace(peak_BE, E_c_B,   len(x_b) - half_b)
     ec_b_combined = np.concatenate([ec_b_left, ec_b_right])
 
-    # ── BC 접합 전이 (베이스→컬렉터) ─────────
+    # ── BC 접합 전이: 베이스→(peak)→컬렉터 ───
     half_c = len(x_c) // 2
-    # BC 장벽 peak = E_c_B + bc_barrier
-    peak_BC = E_c_B + bc_barrier
+    peak_BC = max(E_c_B, E_c_C) + bc_peak_h
     ec_c_left  = np.linspace(E_c_B,   peak_BC, half_c)
     ec_c_right = np.linspace(peak_BC, E_c_C,   len(x_c) - half_c)
     ec_c_combined = np.concatenate([ec_c_left, ec_c_right])
