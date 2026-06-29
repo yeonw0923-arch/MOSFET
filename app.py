@@ -72,11 +72,14 @@ early_k = 1.0 / V_AF
 #  슬라이더 범위(-1.0 ~ 1.5V) 전체에서 직관적으로 동작하도록
 #  히스테리시스 없이 연속적으로 판정
 # ─────────────────────────────────────────────
-VT_ON  = 0.5    # 턴온 시작 (의미있는 전류)
-VT_OFF = 0.3    # 차단 기준
+# 6주차 교안 16p 표 2-2 기준 (NPN)
+#   순방향 활성: B-E 순방향(V_BE>0), B-C 역방향(V_BC<0)
+#   포화:        B-E 순방향(V_BE>0), B-C 순방향(V_BC>0)
+#   차단:        B-E 역방향(V_BE<0), B-C 역방향(V_BC<0)
+# PNP는 V_EB, V_CB 기준이므로 부호 반전해서 동일 적용
 
-be_fwd = V_be > VT_ON   # B-E 순방향 도통
-bc_fwd = V_bc > VT_ON   # B-C 순방향 도통
+be_fwd = V_be > 0   # B-E 순방향
+bc_fwd = V_bc > 0   # B-C 순방향
 
 if be_fwd and not bc_fwd:
     mode = "순방향 활성 모드 (Forward Active)"
@@ -105,7 +108,8 @@ else:
 R_B_eff = 30000.0   # 30kΩ
 
 if be_fwd:
-    I_B_A = (V_be - VT_ON) / R_B_eff
+    # V_BE > 0 → 선형 근사: I_B = V_BE / R_B_eff
+    I_B_A = V_be / R_B_eff
     I_B_A = max(0.0, I_B_A)
 else:
     I_B_A = 0.0
