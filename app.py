@@ -1,6 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
+import numpy as n
 
 st.set_page_config(layout="wide")
 st.title("📟 AI 반도체 소자 직관 보조 툴: BJT 전자/물리 구조 매퍼")
