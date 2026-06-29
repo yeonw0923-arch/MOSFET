@@ -114,50 +114,82 @@ bc_svg_color = "#e74c3c" if bc_fwd else "#3498db"
 be_ax1, be_ax2 = (160, 183) if be_fwd else (183, 160)
 bc_ax1, bc_ax2 = (257, 280) if bc_fwd else (280, 257)
 
-bjt_svg = f"""<svg width="500" height="105" style="display:block;max-width:100%;">
+bjt_svg = f"""<svg width="560" height="130" style="display:block;max-width:100%;">
   <defs>
     <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 1L8 5L2 9" fill="none" stroke="#aaa" stroke-width="1.5"/></marker>
-    <marker id="arBE" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 1L8 5L2 9" fill="none" stroke="{be_svg_color}" stroke-width="1.5"/></marker>
-    <marker id="arBC" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 1L8 5L2 9" fill="none" stroke="{bc_svg_color}" stroke-width="1.5"/></marker>
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5"/></marker>
+    <marker id="arF" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#e74c3c" stroke-width="1.5"/></marker>
+    <marker id="arR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#3498db" stroke-width="1.5"/></marker>
   </defs>
-  <!-- 소자 블록 -->
-  <rect x="55"  y="20" width="105" height="46" rx="4" fill="{ef}" stroke="{es}" stroke-width="1.5"/>
-  <text x="107" y="40" text-anchor="middle" fill="#cde" font-size="12" font-family="monospace" font-weight="bold">{el}</text>
-  <text x="107" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Emitter</text>
-  <rect x="183" y="20" width="74"  height="46" rx="0" fill="{bf}" stroke="{bs}" stroke-width="1.5"/>
-  <text x="220" y="40" text-anchor="middle" fill="{bt}" font-size="12" font-family="monospace" font-weight="bold">{bl}</text>
-  <text x="220" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Base</text>
-  <rect x="280" y="20" width="105" height="46" rx="4" fill="{cf}" stroke="{cs}" stroke-width="1.5"/>
-  <text x="332" y="40" text-anchor="middle" fill="#cec" font-size="12" font-family="monospace" font-weight="bold">{cl}</text>
-  <text x="332" y="56" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Collector</text>
-  <!-- E/B/C 단자 -->
-  <line x1="15" y1="43" x2="53" y2="43" stroke="#aaa" stroke-width="1.5" marker-end="url(#ar2)"/>
-  <text x="8"  y="47" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">E</text>
-  <line x1="220" y1="66" x2="220" y2="76" stroke="#aaa" stroke-width="1.5"/>
-  <text x="220" y="86" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">B</text>
-  <line x1="385" y1="43" x2="415" y2="43" stroke="#aaa" stroke-width="1.5"/>
-  <text x="426" y="47" text-anchor="middle" fill="#555" font-size="12" font-family="monospace" font-weight="bold">C</text>
-  <!-- BE 접합 바이어스 화살표 + 라벨 -->
-  <line x1="{be_ax1}" y1="43" x2="{be_ax2}" y2="43"
-        stroke="{be_svg_color}" stroke-width="2.2" marker-end="url(#arBE)"/>
-  <rect x="98" y="3" width="84" height="14" rx="3" fill="{be_svg_color}" opacity="0.12"/>
-  <text x="140" y="13" text-anchor="middle" fill="{be_svg_color}"
-        font-size="9" font-family="monospace" font-weight="bold">{vl1}  {be_label}</text>
-  <!-- BC 접합 바이어스 화살표 + 라벨 -->
-  <line x1="{bc_ax1}" y1="43" x2="{bc_ax2}" y2="43"
-        stroke="{bc_svg_color}" stroke-width="2.2" marker-end="url(#arBC)"/>
-  <rect x="265" y="3" width="84" height="14" rx="3" fill="{bc_svg_color}" opacity="0.12"/>
-  <text x="307" y="13" text-anchor="middle" fill="{bc_svg_color}"
-        font-size="9" font-family="monospace" font-weight="bold">{vl2}  {bc_label}</text>
-  <!-- BJT 타입 + 현재 모드 -->
-  <text x="452" y="36" fill="#555" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
-  <text x="452" y="50" fill="#888" font-size="9"  font-family="monospace">BJT</text>
-  <rect x="55" y="72" width="330" height="16" rx="3" fill="{mode_color}" opacity="0.13"/>
-  <text x="220" y="83" text-anchor="middle" fill="{mode_color}"
-        font-size="9.5" font-family="monospace" font-weight="bold">{mode} ({mode_en})</text
+
+  <!-- ── 소자 블록 (교안 스타일: 3개 직사각형 붙어있음) ── -->
+  <rect x="80"  y="18" width="110" height="44" rx="3" fill="{ef}" stroke="{es}" stroke-width="1.5"/>
+  <text x="135" y="37" text-anchor="middle" fill="#dde" font-size="13" font-family="monospace" font-weight="bold">{el}</text>
+  <text x="135" y="53" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Emitter</text>
+
+  <rect x="190" y="18" width="70"  height="44" rx="0" fill="{bf}" stroke="{bs}" stroke-width="1.5"/>
+  <text x="225" y="37" text-anchor="middle" fill="{bt}" font-size="13" font-family="monospace" font-weight="bold">{bl}</text>
+  <text x="225" y="53" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Base</text>
+
+  <rect x="260" y="18" width="110" height="44" rx="3" fill="{cf}" stroke="{cs}" stroke-width="1.5"/>
+  <text x="315" y="37" text-anchor="middle" fill="#ded" font-size="13" font-family="monospace" font-weight="bold">{cl}</text>
+  <text x="315" y="53" text-anchor="middle" fill="#9ab" font-size="9"  font-family="monospace">Collector</text>
+
+  <!-- ── E / B / C 단자 및 배선 ── -->
+  <!-- E 단자 (왼쪽) -->
+  <line x1="30" y1="40" x2="78" y2="40" stroke="#555" stroke-width="1.5" marker-end="url(#ar2)"/>
+  <text x="22" y="44" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">E</text>
+
+  <!-- C 단자 (오른쪽) -->
+  <line x1="372" y1="40" x2="400" y2="40" stroke="#555" stroke-width="1.5"/>
+  <text x="410" y="44" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">C</text>
+
+  <!-- B 단자 (아래) -->
+  <line x1="225" y1="62" x2="225" y2="80" stroke="#555" stroke-width="1.5"/>
+  <text x="225" y="93" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">B</text>
+
+  <!-- ── V_BE 배터리 회로 (아래 왼쪽) ── -->
+  <!-- 배선: E 하단 → 배터리 → B -->
+  <line x1="30"  y1="40"  x2="30"  y2="110" stroke="#555" stroke-width="1.2"/>
+  <line x1="30"  y1="110" x2="130" y2="110" stroke="#555" stroke-width="1.2"/>
+  <!-- 배터리 기호 (교안 스타일) -->
+  <line x1="130" y1="103" x2="130" y2="117" stroke="{be_svg_color}" stroke-width="2.5"/>
+  <line x1="137" y1="107" x2="137" y2="113" stroke="{be_svg_color}" stroke-width="1.5"/>
+  <line x1="144" y1="103" x2="144" y2="117" stroke="{be_svg_color}" stroke-width="2.5"/>
+  <line x1="151" y1="107" x2="151" y2="113" stroke="{be_svg_color}" stroke-width="1.5"/>
+  <line x1="151" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
+  <line x1="225" y1="110" x2="225" y2="82"  stroke="#555" stroke-width="1.2"/>
+  <!-- +/- 극성 표시 -->
+  <text x="123" y="108" text-anchor="middle" fill="{be_svg_color}" font-size="11" font-family="monospace" font-weight="bold">{"+" if be_fwd else "-"}</text>
+  <text x="158" y="108" text-anchor="middle" fill="{be_svg_color}" font-size="11" font-family="monospace" font-weight="bold">{"−" if be_fwd else "+"}</text>
+  <!-- V_BE 라벨 -->
+  <text x="140" y="127" text-anchor="middle" fill="{be_svg_color}" font-size="9" font-family="monospace" font-weight="bold">{vl1} ({'순방향' if be_fwd else '역방향'})</text>
+
+  <!-- ── V_BC 배터리 회로 (아래 오른쪽) ── -->
+  <line x1="400" y1="40"  x2="400" y2="110" stroke="#555" stroke-width="1.2"/>
+  <line x1="400" y1="110" x2="320" y2="110" stroke="#555" stroke-width="1.2"/>
+  <!-- 배터리 기호 -->
+  <line x1="320" y1="103" x2="320" y2="117" stroke="{bc_svg_color}" stroke-width="2.5"/>
+  <line x1="313" y1="107" x2="313" y2="113" stroke="{bc_svg_color}" stroke-width="1.5"/>
+  <line x1="306" y1="103" x2="306" y2="117" stroke="{bc_svg_color}" stroke-width="2.5"/>
+  <line x1="299" y1="107" x2="299" y2="113" stroke="{bc_svg_color}" stroke-width="1.5"/>
+  <line x1="299" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
+  <!-- +/- 극성 표시 -->
+  <text x="327" y="108" text-anchor="middle" fill="{bc_svg_color}" font-size="11" font-family="monospace" font-weight="bold">{"+" if bc_fwd else "-"}</text>
+  <text x="292" y="108" text-anchor="middle" fill="{bc_svg_color}" font-size="11" font-family="monospace" font-weight="bold">{"−" if bc_fwd else "+"}</text>
+  <!-- V_BC 라벨 -->
+  <text x="312" y="127" text-anchor="middle" fill="{bc_svg_color}" font-size="9" font-family="monospace" font-weight="bold">{vl2} ({'순방향' if bc_fwd else '역방향'})</text>
+
+  <!-- BJT 타입 -->
+  <text x="490" y="32" fill="#555" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
+  <text x="490" y="46" fill="#888" font-size="9"  font-family="monospace">BJT</text>
+
+  <!-- 현재 모드 배너 -->
+  <rect x="80" y="68" width="290" height="15" rx="3" fill="{mode_color}" opacity="0.13"/>
+  <text x="225" y="78" text-anchor="middle" fill="{mode_color}"
+        font-size="9" font-family="monospace" font-weight="bold">{mode} ({mode_en})</text>
 </svg>"""
 
 # ════════════════════════════════════════════════════════════════════
@@ -197,7 +229,7 @@ with row1_right:
     canvas_html = f"""
 <div style="display:flex;flex-direction:column;gap:8px;">
   {bjt_svg}
-  <canvas id="bjtCvs" width="560" height="160"
+  <canvas id="bjtCvs" width="560" height="120"
     style="background:#ffffff;border-radius:8px;display:block;width:100%;border:1px solid #eaeaea;
            box-shadow:0 2px 8px rgba(0,0,0,0.05);"></canvas>
   <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
@@ -396,7 +428,7 @@ with row1_right:
 }})();
 </script>
 """
-    components.html(canvas_html, height=330)
+    components.html(canvas_html, height=360)
 
 st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
 
