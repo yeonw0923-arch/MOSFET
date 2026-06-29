@@ -349,7 +349,7 @@ with col_mid:
         # 드레인: 접합부(앞 30%) 에서 급강하 후 수평
         t_drn  = np.linspace(0, 1, len(x_drn))
         # sigmoid: 0 근처에서 급강하, 이후 band_drop 수렴
-        ec_drn = E0 + band_drop * (1 - np.exp(-t_drn * 8))
+        ec_drn = E0 + band_drop * (1 - np.exp(-t_drn * 18))
     else:
         # 반전층: sin 굽힘(게이트) + 기울기(V_DS)
         ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
