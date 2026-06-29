@@ -304,16 +304,19 @@ with col_mid:
     # 차단: 소량의 위로 굽음 (공핍), E_v가 E_F를 넘지 않도록 제한
     if device == "NMOS":
         if region == "Cutoff":
-            gate_bend = +0.12   # 공핍: E_c 살짝 위로, E_v는 여전히 E_F 아래
+            # 차단: V_GS < V_TH → 공핍층만 있고 반전층 없음
+            # E_c는 거의 수평 (굽힘 없음), V_DS에 의한 드레인 쪽 강하만 있음
+            gate_bend = 0.0
         else:
-            # 반전: 채널 중앙 E_c가 E_F + 약간 위로 내려옴
-            gate_bend = ef_src_val - E0 + 0.10   # 음수 (≈ -0.87)
-            gate_bend = max(gate_bend, -(Eg * 0.8))  # 과도한 굽힘 방지
+            # 반전층 형성: 채널 E_c가 E_F 근처까지 내려옴
+            # ef_src_val ≈ 1.03, E0 = 2.0 → gate_bend ≈ -0.87
+            gate_bend = ef_src_val - E0 + 0.10   # 음수
+            gate_bend = max(gate_bend, -(Eg * 0.8))
     else:
         if region == "Cutoff":
-            gate_bend = -0.12
+            gate_bend = 0.0
         else:
-            gate_bend = ef_src_val - E0 - 0.10   # PMOS: 양수 방향
+            gate_bend = ef_src_val - E0 - 0.10   # PMOS: 양수
             gate_bend = min(gate_bend, +(Eg * 0.8))
 
     # ── x 좌표 ────────────────────────────────────────────
@@ -339,11 +342,7 @@ with col_mid:
     # band_drop * t^n: V_DS에 의한 드레인 쪽 강하
     ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
 
-    # 차단 모드: E_v가 E_F를 넘지 않도록 E_c 클램프
-    if region == "Cutoff" and device == "NMOS":
-        ec_ch = np.maximum(ec_ch, ef_src_val + Eg + 0.05)  # E_v < E_F 보장
-    elif region == "Cutoff" and device == "PMOS":
-        ec_ch = np.minimum(ec_ch, ef_src_val - 0.05)
+    # (차단 모드 클램프 제거: gate_bend=0으로 처리)
 
     ec_drn = np.full_like(x_drn, E0 + band_drop)
 
