@@ -377,21 +377,22 @@ with row1_right:
 
       }} else if(MODE==='saturation') {{
         // ── 포화: 양쪽 접합 모두 순방향 ──────────────────────────
-        // 이미터→컬렉터 + 컬렉터→이미터 방향 동시 흐름
-        // 각 파티클은 초기화 시 d=1 or d=-1 로 방향 배정됨
+        // 이미터→컬렉터 + 컬렉터→이미터 동시 흐름 (d로 방향 구분)
         const mainType = BJT==='NPN' ? 'e' : 'h';
         if(p.t===mainType) {{
           vx = p.d * 3.0;
           vy = (Math.random()-0.5)*1.0;
-          if(p.x > W + 5) p.x = -5;
-          if(p.x < -5)    p.x = W + 5;
         }} else {{
           vx = p.d * 2.0;
           vy = (Math.random()-0.5)*1.5;
-          if(p.x > W + 5) p.x = -5;
-          if(p.x < -5)    p.x = W + 5;
         }}
-
+        // wrapping: p.x += vx 이후에 체크
+        p.x += vx;
+        p.y += vy;
+        p.y = Math.max(22, Math.min(H-14, p.y));
+        if(p.x > W + 5)  {{ p.x = -5;  p.y = randY(); }}
+        if(p.x < -5)     {{ p.x = W+5; p.y = randY(); }}
+        return;  // forEach에서 continue 역할
       }} else if(MODE==='reverse_active') {{
         // ── 역방향 활성: 순방향 활성의 반대 ─────────────────────
         // NPN: 전자가 컬렉터→이미터 방향 (오→왼)
