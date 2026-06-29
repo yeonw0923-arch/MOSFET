@@ -212,14 +212,14 @@ with col1:
         fig_band.add_trace(go.Scatter(
             x=np.random.uniform(0.2, 2.6, 20),
             y=y_ec_e[0] + np.random.uniform(0.05, 0.25, 20),
-            mode='markers', marker=dict(color='#1f77b4', size=7),
+            mode='markers', marker=dict(color='#1f77b4', size=9, line=dict(color='#003380', width=1.5)),
             name='전자(e⁻)', showlegend=False))
 
         # 베이스: E_v 근처에 정공
         fig_band.add_trace(go.Scatter(
             x=np.random.uniform(3.0, 5.0, 10),
             y=y_ev[40:70:3][:10] + np.random.uniform(-0.1, 0.0, 10),
-            mode='markers', marker=dict(color='#d62728', size=7, symbol='circle-open'),
+            mode='markers', marker=dict(color='#d62728', size=10, symbol='circle', line=dict(color='#8b0000', width=1.5)),
             name='정공(h⁺)', showlegend=False))
 
         if mode == "순방향 활성 모드 (Forward Active)":
@@ -254,13 +254,13 @@ with col1:
         fig_band.add_trace(go.Scatter(
             x=np.random.uniform(0.2, 2.6, 20),
             y=y_ev[:40:2][:20] + np.random.uniform(-0.1, 0.05, 20),
-            mode='markers', marker=dict(color='#d62728', size=7, symbol='circle-open'),
+            mode='markers', marker=dict(color='#d62728', size=10, symbol='circle', line=dict(color='#8b0000', width=1.5)),
             showlegend=False))
         # 베이스: E_c 근처에 전자
         fig_band.add_trace(go.Scatter(
             x=np.random.uniform(3.0, 5.0, 10),
             y=y_ec[40:70:3][:10] + np.random.uniform(0.0, 0.15, 10),
-            mode='markers', marker=dict(color='#1f77b4', size=7),
+            mode='markers', marker=dict(color='#1f77b4', size=9, line=dict(color='#003380', width=1.5)),
             showlegend=False))
         if mode == "순방향 활성 모드 (Forward Active)":
             fig_band.add_annotation(x=3.5, y=E_c_B_level + 0.5,
@@ -281,12 +281,31 @@ with col1:
                              text="<b>COLLECTOR (N)</b>" if bjt_type=="NPN" else "<b>COLLECTOR (P)</b>",
                              showarrow=False, font=dict(size=12, color="#2ca02c"))
 
+    # ── 범례: 전자/정공 수동 추가 (교안 스타일) ──────────────────────
+    fig_band.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(color='#1f77b4', size=9, line=dict(color='#003380', width=1.5)),
+        name='전자 (e⁻)'))
+    fig_band.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(color='#d62728', size=10, symbol='circle',
+                    line=dict(color='#8b0000', width=1.5)),
+        name='정공 (h⁺)'))
+    fig_band.add_trace(go.Scatter(
+        x=[None], y=[None], mode='lines',
+        line=dict(color='blue', width=2, dash='dash'),
+        name='준페르미 준위 (E_F)'))
+
     fig_band.update_layout(
         title="<b>🔋 동적 에너지 밴드 다이어그램 (E_F 영역별 분리 고증)</b>",
-        xaxis=dict(visible=False, range=[-0.2, 8.4]),
-        yaxis=dict(visible=False, range=[-1.8, 4.4]),
-        height=300, margin=dict(l=10, r=10, t=40, b=10),
-        showlegend=False, plot_bgcolor='white'
+        xaxis=dict(visible=False, range=[-0.2, 8.6]),
+        yaxis=dict(visible=False, range=[-2.0, 4.8]),
+        height=340, margin=dict(l=10, r=10, t=40, b=10),
+        showlegend=True,
+        legend=dict(x=0.01, y=0.01, bgcolor='rgba(255,255,255,0.8)',
+                    bordercolor='lightgray', borderwidth=1,
+                    font=dict(size=10)),
+        plot_bgcolor='white'
     )
     st.plotly_chart(fig_band, use_container_width=True)
 
@@ -319,7 +338,8 @@ with col1:
         for v in v_mesh:
             # Ebers-Moll 근사: I_C = β·I_B·(1-exp(-V_CE/V_T))·(1 + V_CE/V_AF)
             # V_T = 0.026V (실온), 포화영역 knee 포함
-            ic = ic_sat * (1 - np.exp(-v / 0.026)) * (1 + early_k * v)
+            # V_knee ≈ 0.3V: 실제 특성 곡선처럼 완만하게 포화
+            ic = ic_sat * (1 - np.exp(-v / 0.3)) * (1 + early_k * v)
             ic = max(0.0, ic)
             curves_mA.append(ic)
         fig_iv.add_trace(go.Scatter(
