@@ -276,14 +276,19 @@ with row1_right:
             vy = (Math.random()-0.5)*0.8;
             if(p.x > W) {{ p.x=5; p.zone='E'; }}  // 리셋: 이미터로 돌아감
           }} else {{
-            // 정공은 베이스 안에서만
-            // 베이스 소수 캐리어: 브라운 운동 (범위 넓게)
-            vx = (Math.random()-0.5)*3.0;
-            vy = (Math.random()-0.5)*3.0;
-            // 베이스 경계 소프트 클램프
-            if(p.x < XBE+6) p.x += 2;
-            if(p.x > XBC-6) p.x -= 2;
-            // 재결합: 랜덤하게 발생 (플래시)
+            // NPN 베이스 정공: 베이스→이미터 방향으로 역확산
+            // (교안 그림 2-7: 정공이 이미터 방향으로 확산되며 일부 재결합)
+            vx = -1.5 + (Math.random()-0.5)*1.5;
+            vy = (Math.random()-0.5)*2.0;
+            // 이미터 영역으로 넘어가면 재결합 플래시 후 베이스로 리셋
+            if(p.x < XBE - 8) {{
+              recombEvents.push({{x:p.x, y:p.y, t:22}});
+              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
+              p.y = randY();
+            }}
+            // BC 경계는 못 넘음
+            if(p.x > XBC-4) p.x = XBC-4;
+            // 베이스 통과 중인 전자와 재결합
             if(Math.random() < 0.004) {{
               recombEvents.push({{x:p.x, y:p.y, t:25}});
               p.x = Math.random()*(XBC-XBE-10)+XBE+5;
@@ -297,11 +302,15 @@ with row1_right:
             vy = (Math.random()-0.5)*0.8;
             if(p.x > W) {{ p.x=5; p.zone='E'; }}
           }} else {{
-            // 베이스 소수 캐리어 브라운 운동
-            vx = (Math.random()-0.5)*3.0;
-            vy = (Math.random()-0.5)*3.0;
-            if(p.x < XBE+6) p.x += 2;
-            if(p.x > XBC-6) p.x -= 2;
+            // PNP 베이스 전자: 베이스→이미터 방향으로 역확산
+            vx = -1.5 + (Math.random()-0.5)*1.5;
+            vy = (Math.random()-0.5)*2.0;
+            if(p.x < XBE - 8) {{
+              recombEvents.push({{x:p.x, y:p.y, t:22}});
+              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
+              p.y = randY();
+            }}
+            if(p.x > XBC-4) p.x = XBC-4;
             if(Math.random() < 0.004) {{
               recombEvents.push({{x:p.x, y:p.y, t:25}});
               p.x = Math.random()*(XBC-XBE-10)+XBE+5;
