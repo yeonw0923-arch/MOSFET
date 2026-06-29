@@ -184,43 +184,174 @@ with row1_right:
   const W=c.width,H=c.height;
   const MODE='{anim_key}',BJT='{bjt_type}';
   const XBE=Math.round(W*0.33),XBC=Math.round(W*0.67),YM=H/2;
-  let pts=[];
-  for(let i=0;i<38;i++) pts.push({{x:Math.random()*W,y:YM-25+Math.random()*50,r:4.2,t:'e',d:1}});
-  for(let i=0;i<28;i++) pts.push({{x:Math.random()*W,y:YM-20+Math.random()*40,r:4.0,t:'h',d:-1}});
+
+  // ── 물리적 초기 배치 ──────────────────────────────────────────────
+  // NPN:
+  //   전자(e⁻) → 이미터(N+) 영역 + 컬렉터(N) 영역에 다수 존재
+  //   정공(h⁺) → 베이스(P) 영역에만 존재
+  // PNP:
+  //   정공(h⁺) → 이미터(P+) 영역 + 컬렉터(P) 영역에 다수 존재
+  //   전자(e⁻) → 베이스(N) 영역에만 존재
+  //
+  // 각 파티클: {{x, y, r, t('e'|'h'), zone('E'|'B'|'C'), recomb, recombT}}
+
+  function randY() {{ return YM - 28 + Math.random()*56; }}
+
+  let pts = [];
+
+  if(BJT === 'NPN') {{
+    // 이미터 전자 20개
+    for(let i=0;i<20;i++) pts.push({{x:Math.random()*(XBE-10)+5, y:randY(), r:4.2, t:'e', zone:'E', recomb:false, recombT:0}});
+    // 컬렉터 전자 16개
+    for(let i=0;i<16;i++) pts.push({{x:Math.random()*(W-XBC-10)+XBC+5, y:randY(), r:4.2, t:'e', zone:'C', recomb:false, recombT:0}});
+    // 베이스 정공 12개
+    for(let i=0;i<12;i++) pts.push({{x:Math.random()*(XBC-XBE-10)+XBE+5, y:randY(), r:4.0, t:'h', zone:'B', recomb:false, recombT:0}});
+  }} else {{
+    // PNP: 이미터 정공, 컬렉터 정공, 베이스 전자
+    for(let i=0;i<20;i++) pts.push({{x:Math.random()*(XBE-10)+5, y:randY(), r:4.0, t:'h', zone:'E', recomb:false, recombT:0}});
+    for(let i=0;i<16;i++) pts.push({{x:Math.random()*(W-XBC-10)+XBC+5, y:randY(), r:4.0, t:'h', zone:'C', recomb:false, recombT:0}});
+    for(let i=0;i<12;i++) pts.push({{x:Math.random()*(XBC-XBE-10)+XBE+5, y:randY(), r:4.2, t:'e', zone:'B', recomb:false, recombT:0}});
+  }}
+
+  // ── 재결합 이벤트 타이머 ──────────────────────────────────────────
+  let recombEvents = [];  // {{x, y, t(남은 프레임)}}
+
   function frame(){{
     ctx.clearRect(0,0,W,H);
-    ctx.fillStyle='rgba(30,100,200,0.07)';  ctx.fillRect(0,0,XBE,H);
-    ctx.fillStyle='rgba(200,60,60,0.07)';   ctx.fillRect(XBE,0,XBC-XBE,H);
-    ctx.fillStyle='rgba(30,160,80,0.07)';   ctx.fillRect(XBC,0,W-XBC,H);
+
+    // 배경
+    ctx.fillStyle='rgba(30,100,200,0.08)';  ctx.fillRect(0,0,XBE,H);
+    ctx.fillStyle='rgba(200,60,60,0.08)';   ctx.fillRect(XBE,0,XBC-XBE,H);
+    ctx.fillStyle='rgba(30,160,80,0.08)';   ctx.fillRect(XBC,0,W-XBC,H);
+
+    // 경계선
     [XBE,XBC].forEach(x=>{{
-      ctx.strokeStyle='rgba(180,180,180,0.35)';ctx.lineWidth=1;
+      ctx.strokeStyle='rgba(200,200,200,0.35)';ctx.lineWidth=1;
       ctx.setLineDash([4,4]);
       ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
       ctx.setLineDash([]);
     }});
+
+    // 영역 라벨
     ctx.font='bold 10px monospace';
     ctx.fillStyle='#7ab4f8'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,15);
     ctx.fillStyle='#f28b82'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,15);
     ctx.fillStyle='#81c995'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,15);
-    pts.forEach(p=>{{
-      const col=p.t==='e'?'#00E6FF':'#FF7043';
-      ctx.shadowBlur=6;ctx.shadowColor=col;ctx.fillStyle=col;
-      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;
-      let vx=0;
-      if(MODE==='forward_active'){{
-        vx=(p.t==='e')?(BJT==='NPN'?3.5:-3.5):(BJT==='NPN'?-1.5:1.5);
-      }}else if(MODE==='saturation'){{
-        vx=p.d*(p.t==='e'?2.8:1.4);
-        if(p.x>W-4||p.x<4)p.d*=-1;
-      }}else if(MODE==='reverse_active'){{
-        vx=(p.t==='e')?(BJT==='NPN'?-3.5:3.5):(BJT==='NPN'?1.5:-1.5);
-      }}
-      p.x+=vx+(Math.random()-0.5)*(MODE==='cutoff'?0.7:0.22);
-      p.y+=(Math.random()-0.5)*0.6;
-      p.y=Math.max(22,Math.min(H-14,p.y));
-      if(p.x>W)p.x=0; if(p.x<0)p.x=W;
+
+    // 재결합 플래시 렌더링
+    recombEvents = recombEvents.filter(ev => ev.t > 0);
+    recombEvents.forEach(ev => {{
+      const alpha = ev.t / 25;
+      const r = (25 - ev.t) * 0.6 + 4;
+      ctx.beginPath();
+      ctx.arc(ev.x, ev.y, r, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255,220,50,${{alpha}})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ev.t--;
     }});
+
+    // ── 파티클 업데이트 ────────────────────────────────────────────
+    pts.forEach(p => {{
+      // 주 캐리어 색 (NPN: 전자=파랑, 정공=빨강 / PNP 동일)
+      const col = p.t==='e' ? '#00E6FF' : '#FF7043';
+      ctx.shadowBlur=6; ctx.shadowColor=col; ctx.fillStyle=col;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+
+      let vx=0, vy=0;
+
+      if(MODE==='cutoff') {{
+        // 차단: 완전 정지 (열진동만)
+        vx=(Math.random()-0.5)*0.5;
+        vy=(Math.random()-0.5)*0.5;
+
+      }} else if(MODE==='forward_active') {{
+        // ── NPN 순방향 활성 ──────────────────────────────────────
+        // 전자: 이미터에서 베이스 통과 후 컬렉터로 (왼→오)
+        // 정공: 베이스 안에서만 브라운 운동 (일부 재결합)
+        if(BJT==='NPN') {{
+          if(p.t==='e') {{
+            vx = 3.5;  // 이미터→컬렉터 방향
+            vy = (Math.random()-0.5)*0.8;
+            if(p.x > W) {{ p.x=5; p.zone='E'; }}  // 리셋: 이미터로 돌아감
+          }} else {{
+            // 정공은 베이스 안에서만
+            vx = (Math.random()-0.5)*1.2;
+            vy = (Math.random()-0.5)*1.2;
+            // 베이스 경계 클램프
+            if(p.x < XBE+4) p.x = XBE+4;
+            if(p.x > XBC-4) p.x = XBC-4;
+            // 재결합: 랜덤하게 발생
+            if(Math.random() < 0.003) {{
+              recombEvents.push({{x:p.x, y:p.y, t:25}});
+              // 재결합 후 위치 리셋 (베이스 내 다른 위치)
+              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
+              p.y = randY();
+            }}
+          }}
+        // ── PNP 순방향 활성 ──────────────────────────────────────
+        // 정공: 이미터→컬렉터 방향 (왼→오)
+        // 전자: 베이스 안에서만 브라운 운동
+        }} else {{
+          if(p.t==='h') {{
+            vx = 3.5;
+            vy = (Math.random()-0.5)*0.8;
+            if(p.x > W) {{ p.x=5; p.zone='E'; }}
+          }} else {{
+            vx = (Math.random()-0.5)*1.2;
+            vy = (Math.random()-0.5)*1.2;
+            if(p.x < XBE+4) p.x = XBE+4;
+            if(p.x > XBC-4) p.x = XBC-4;
+            if(Math.random() < 0.003) {{
+              recombEvents.push({{x:p.x, y:p.y, t:25}});
+              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
+              p.y = randY();
+            }}
+          }}
+        }}
+
+      }} else if(MODE==='saturation') {{
+        // ── 포화: 양쪽 접합 모두 순방향 ──────────────────────────
+        // 주 캐리어가 양방향으로 범람 (방향성 약함, 확산 지배)
+        // NPN: 전자 양방향, 정공은 베이스에서 양방향 넘침
+        // PNP: 정공 양방향, 전자는 베이스에서 양방향 넘침
+        const mainType = BJT==='NPN' ? 'e' : 'h';
+        if(p.t===mainType) {{
+          // 주 캐리어: 넓은 확산 (방향 랜덤)
+          vx = (Math.random()-0.5)*4.0;
+          vy = (Math.random()-0.5)*2.0;
+        }} else {{
+          // 소수 캐리어: 베이스 바깥으로도 약하게 넘침
+          vx = (Math.random()-0.5)*2.5;
+          vy = (Math.random()-0.5)*1.5;
+        }}
+        // 경계: 전체 너비 내에서 반사
+        if(p.x>W-4) p.x=W-4;
+        if(p.x<4)   p.x=4;
+
+      }} else if(MODE==='reverse_active') {{
+        // ── 역방향 활성: 순방향 활성의 반대 ─────────────────────
+        // NPN: 전자가 컬렉터→이미터 방향 (오→왼)
+        // PNP: 정공이 컬렉터→이미터 방향 (오→왼)
+        const mainType = BJT==='NPN' ? 'e' : 'h';
+        if(p.t===mainType) {{
+          vx = -3.5;
+          vy = (Math.random()-0.5)*0.8;
+          if(p.x < 0) {{ p.x=W-5; }}
+        }} else {{
+          vx = (Math.random()-0.5)*1.2;
+          vy = (Math.random()-0.5)*1.2;
+          if(p.x < XBE+4) p.x = XBE+4;
+          if(p.x > XBC-4) p.x = XBC-4;
+        }}
+      }}
+
+      p.x += vx;
+      p.y += vy;
+      p.y = Math.max(22, Math.min(H-14, p.y));
+    }});
+
     c._aid=requestAnimationFrame(frame);
   }}
   frame();
