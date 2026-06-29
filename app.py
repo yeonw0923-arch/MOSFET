@@ -273,29 +273,34 @@ with col_mid:
     abs_vds      = abs(vds)
     abs_vth      = abs(vth)
     vgs_eff_plot = max(abs(vgs) - abs_vth, 0.0)
-    SCALE        = 0.40   # eV/V 표시 배율 (5V → 2eV 범위에 맞게)
+    # 표시 스케일: 5V → 최대 0.8eV 강하로 제한 (그래프 가독성)
+    # 실제 물리값(eV=V)이 아닌 시각화용 배율
+    SCALE     = 0.16   # eV/V (5V → 0.8eV)
+    MAX_DROP  = 0.8    # 최대 표시 강하량
 
-    E0    = 2.0           # 소스 E_c 기준
-    Ev0   = E0 - Eg       # 소스 E_v = 0.88
+    E0    = 2.0        # 소스 E_c 기준
+    Ev0   = E0 - Eg    # 소스 E_v = 0.88
 
     # ── E_F 소스 위치 ─────────────────────────────────────
+    # NMOS (p-substrate): E_F = E_v + 0.15 ≈ 1.03
+    # PMOS (n-substrate): E_F = E_c - 0.15 ≈ 1.85
     if device == "NMOS":
-        ef_src_val = Ev0 + 0.15   # p-substrate: E_v 가까이 ≈ 1.03
+        ef_src_val = Ev0 + 0.15
     else:
-        ef_src_val = E0 - 0.15    # n-substrate: E_c 가까이 ≈ 1.85
+        ef_src_val = E0 - 0.15
 
-    # ── 드레인 E_F (소스 대비 qV_DS 만큼 분리) ───────────
+    # ── 드레인 E_F: 소스 대비 V_DS 만큼 분리 (스케일 적용) ──
+    ef_drop = min(abs_vds * SCALE, MAX_DROP)
     if device == "NMOS":
-        ef_drn_val = ef_src_val - abs_vds * SCALE   # 드레인 E_F 낮아짐
+        ef_drn_val = ef_src_val - ef_drop
     else:
-        ef_drn_val = ef_src_val + abs_vds * SCALE   # PMOS: 드레인 E_F 높아짐
+        ef_drn_val = ef_src_val + ef_drop
 
-    # ── V_DS에 의한 드레인 밴드 강하 ─────────────────────
-    max_drop = 1.8
+    # ── V_DS에 의한 드레인 밴드 강하 (E_F와 동일 스케일) ─
     if device == "NMOS":
-        band_drop = -min(abs_vds * SCALE, max_drop)   # 음수: E_c 하강
+        band_drop = -ef_drop   # 음수: E_c 하강
     else:
-        band_drop = +min(abs_vds * SCALE, max_drop)   # 양수: E_c 상승
+        band_drop = +ef_drop   # 양수: E_c 상승
 
     # ── 채널 게이트 굽힘 ──────────────────────────────────
     # 반전층 형성 시: 채널 E_c가 E_F 근처까지 내려옴
