@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. 페이지 레이아웃 설정
+# 1. 페이지 레이아웃 설정 (와이드 모드)
 st.set_page_config(layout="wide")
 st.title("📟 AI 반도체 소자 직관 보조 툴: BJT 전자/물리 구조 매퍼")
 
@@ -13,22 +13,33 @@ if "GEMINI_API_KEY" in st.secrets:
 else:
     st.sidebar.warning("🔑 Gemini API 키가 Secrets에 등록되지 않아 AI 인사이트 기능이 제한됩니다.")
 
-# 3. 좌측 사이드바: BJT 타입 및 입력창 배치
+# 3. 좌측 사이드바: BJT 타입 및 슬라이더 + 입력창 실시간 동기화 아키텍처
 st.sidebar.header("🎛️ BJT 소자 및 바이어스 조절")
 bjt_type = st.sidebar.radio("소자 타입 선택 (Type)", ["NPN", "PNP"])
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔌 접합 전압 인가 (Bias)")
 
-# [기능 개선] 슬라이더와 직접 숫자 입력을 동시에 할 수 있도록 구조 바꿈 (범위: -10V ~ 10V)
-if bjt_type == "NPN":
-    V_be = st.sidebar.number_input("베이스-이미터 전압 (V_BE) [V]", min_value=-1.0, max_value=1.0, value=0.7, step=0.05)
-    V_bc = st.sidebar.number_input("베이스-컬렉터 전압 (V_BC) [V]", min_value=-10.0, max_value=10.0, value=-1.7, step=0.1)
-    V_CE = V_be - V_bc
-else:
-    V_be = st.sidebar.number_input("이미터-베이스 전압 (V_EB) [V]", min_value=-1.0, max_value=1.0, value=0.7, step=0.05)
-    V_bc = st.sidebar.number_input("컬렉터-베이스 전압 (V_CB) [V]", min_value=-10.0, max_value=10.0, value=-1.7, step=0.1)
-    V_CE = V_be - V_bc  # PNP는 V_EC 관점
+# 세션 상태(st.session_state)를 이용한 슬라이더 & number_input 쌍방향 실시간 연동 로직
+if "v_be_val" not in st.session_state: st.session_state.v_be_val = 0.8
+if "v_bc_val" not in st.session_state: st.session_state.v_bc_val = -1.7
+
+def update_be_slider(): st.session_state.v_be_val = st.session_state.be_num
+def update_be_num(): st.session_state.be_num = st.session_state.v_be_val
+def update_bc_slider(): st.session_state.v_bc_val = st.session_state.bc_num
+def update_bc_num(): st.session_state.bc_num = st.session_state.v_bc_val
+
+# 🛠️ [범위 수정] V_BE 제어 컴포넌트 (현실적인 -1.0V ~ 1.5V 세팅)
+label_be = "베이스-이미터 전압 (V_BE) [V]" if bjt_type == "NPN" else "이미터-베이스 전압 (V_EB) [V]"
+st.sidebar.number_input(label_be, min_value=-1.0, max_value=1.5, step=0.05, key="be_num", on_change=update_be_slider, value=st.session_state.v_be_val)
+V_be = st.sidebar.slider(label_be, min_value=-1.0, max_value=1.5, step=0.05, key="v_be_val", on_change=update_be_num, label_visibility="collapsed")
+
+# 🛠️ [범위 수정] V_BC 제어 컴포넌트 (부하선 연동형 -5.0V ~ 5.0V 세팅)
+label_bc = "베이스-컬렉터 전압 (V_BC) [V]" if bjt_type == "NPN" else "컬렉터-베이스 전압 (V_CB) [V]"
+st.sidebar.number_input(label_bc, min_value=-5.0, max_value=5.0, step=0.1, key="bc_num", on_change=update_bc_slider, value=st.session_state.v_bc_val)
+V_bc = st.sidebar.slider(label_bc, min_value=-5.0, max_value=5.0, step=0.1, key="v_bc_val", on_change=update_bc_num, label_visibility="collapsed")
+
+V_CE = V_be - V_bc
 
 st.sidebar.markdown("---")
 st.sidebar.header("💬 AI에게 질문하기")
@@ -38,38 +49,29 @@ user_question = st.sidebar.text_area(
     height=100
 )
 
-# 4. 백엔드 알고리즘: 물리적 턴온 상태 및 동작 영역 정확한 판정
-if bjt_type == "NPN":
-    be_forward = V_be > 0.65  
-    bc_forward = V_bc > 0.50
-else:
-    be_forward = V_be > 0.65
-    bc_forward = V_bc > 0.50
+# 4. 백엔드 알고리즘: 실제 물리 바이어스 기준 동작 모드 정밀 판정 (교안 6p 표 2-2)
+be_forward = V_be > 0.65  
+bc_forward = V_bc > 0.50
 
-# 회로 스펙 지정 (7주차 교안 기준 부하선 동기화)
+# 7주차 부하선 스펙 가산 연동 (V_CC = 5V, R_C = 800옴)
 V_CC = 5.0  
 R_C = 800   
 max_ic_mA = (V_CC / R_C) * 1000  # 6.25 mA
 
-# 동작 4대 영역 판정 및 물리 수식 기반 진짜 Q점 전류 계산
 if be_forward and not bc_forward:
     mode = "순방향 활성 모드 (Forward Active)"
     description = "B-E 순방향, B-C 역방향 바이어스 상태입니다. 캐리어 증폭 작용이 일어납니다."
-    # 실제 물리 법칙 연동: V_CE 전압에 따른 전류 상태 계산
-    q_vce_point = max(0.0, min(V_CC, V_CE))
-    # 부하선과 만나는 실제 동작점 유도
-    ideal_ic = 3.5 * (1 - np.exp(-q_vce_point / 0.25)) + 0.05 * q_vce_point
-    load_ic = (-(1 / R_C) * q_vce_point + (V_CC / R_C)) * 1000
+    # 실제 부하선(Load Line) 방정식과 연동되는 물리 동작점 수치 계산 기법 적용
+    ideal_vce = max(0.2, min(V_CC, V_CE))
+    ideal_ic = 3.6 * (1 - np.exp(-ideal_vce / 0.25)) + 0.03 * ideal_vce
+    load_ic = (-(1 / R_C) * ideal_vce + (V_CC / R_C)) * 1000
     q_ic_point = max(0.0, min(load_ic, ideal_ic))
-    # 전류에 맞춰서 V_CE 최종 역산 (부하선 위 정렬 고증)
     q_vce_point = V_CC - (q_ic_point / 1000) * R_C
-
 elif be_forward and bc_forward:
     mode = "포화 모드 (Saturation)"
     description = "B-E 순방향, B-C 순방향 바이어스 상태입니다. 스위치가 닫힌(Closed) 것처럼 동작합니다."
-    q_vce_point = max(0.1, min(0.3, V_CE if V_CE > 0 else 0.2))
+    q_vce_point = max(0.12, min(0.3, V_CE if V_CE > 0 else 0.2)) # Knee 전압 포화 영역 수렴
     q_ic_point = (-(1 / R_C) * q_vce_point + (V_CC / R_C)) * 1000
-
 else:
     mode = "차단 모드 (Cut-off)"
     description = "B-E 역방향, B-C 역방향 바이어스 상태입니다. 전류가 흐르지 않는 개방 스위치 상태입니다."
@@ -84,11 +86,14 @@ with col1:
     st.info(f"**판정 모드:** {bjt_type} {mode}  \n**실시간 계산값:** V_CE = {V_CE:.2f}V, I_C = {q_ic_point:.2f}mA")
     
     # ------------------------------------------------------------------
-    # [차트 1] 에너지 밴드 다이어그램 (기존 동일)
+    # [차트 1] 6주차 교안 고증 100%: E_c, E_v, E_f 풀 라벨링 및 캐리어 메커니즘 차트
     # ------------------------------------------------------------------
     fig_band = go.Figure()
-    be_shift = -max(-2.0, min(2.0, V_be)) * 0.7
-    bc_shift = -max(-2.0, min(2.0, V_bc)) * 0.7
+    
+    v_be_clamped = max(-3.0, min(3.0, V_be))
+    v_bc_clamped = max(-3.0, min(3.0, V_bc))
+    be_shift = -v_be_clamped * 0.7
+    bc_shift = -v_bc_clamped * 0.7
     
     x_e = np.linspace(0, 3, 40)
     x_b = np.linspace(3, 5, 30)
@@ -105,54 +110,83 @@ with col1:
     y_ec = np.concatenate([y_e_ec, y_b_ec, y_c_ec])
     y_ev = y_ec - 1.2  
     
-    fig_band.add_vrect(x0=0, x1=3, fillcolor="rgba(230, 242, 255, 0.4)", line_width=0)
-    fig_band.add_vrect(x0=3, x1=5, fillcolor="rgba(255, 240, 245, 0.4)", line_width=0)
-    fig_band.add_vrect(x0=5, x1=8, fillcolor="rgba(245, 245, 220, 0.4)", line_width=0)
+    y_ef = np.zeros_like(x_total) + 0.7
+    if mode != "차단 모드 (Cut-off)" and (V_be != 0 or V_bc != 0):
+        y_ef[:40] = 0.7
+        y_ef[40:] = 0.7 + be_shift
+    
+    fig_band.add_vrect(x0=0, x1=3, fillcolor="rgba(230, 242, 255, 0.45)", line_width=0)
+    fig_band.add_vrect(x0=3, x1=5, fillcolor="rgba(255, 240, 245, 0.45)", line_width=0)
+    fig_band.add_vrect(x0=5, x1=8, fillcolor="rgba(245, 245, 220, 0.45)", line_width=0)
     
     fig_band.add_trace(go.Scatter(x=x_total, y=y_ec, mode='lines', line=dict(color='#000000', width=3.5)))
     fig_band.add_trace(go.Scatter(x=x_total, y=y_ev, mode='lines', line=dict(color='#000000', width=3.5)))
+    fig_band.add_trace(go.Scatter(x=x_total, y=y_ef, mode='lines', line=dict(color='blue', width=1.5, dash='dash')))
+    
+    # 준위별 축 텍스트 명시 라벨링 고증
+    fig_band.add_annotation(x=7.8, y=y_c_ec[-1]+0.2, text="<b>E_C</b>", showarrow=False, font=dict(size=12, color="black"))
+    fig_band.add_annotation(x=7.8, y=y_ef[-1]-0.15, text="<b>E_F</b>", showarrow=False, font=dict(size=12, color="blue"))
+    fig_band.add_annotation(x=7.8, y=y_ev[-1]-0.2, text="<b>E_V</b>", showarrow=False, font=dict(size=12, color="black"))
     
     if bjt_type == "NPN":
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2, 2.8, 18), y=np.random.uniform(1.55, 1.75, 18), mode='markers', marker=dict(color='#1f77b4', size=7, line=dict(color='white', width=0.5))))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2, 2.8, 20), y=np.random.uniform(1.55, 1.75, 20), mode='markers', marker=dict(color='#1f77b4', size=6.5, line=dict(color='white', width=0.3)), name='전자'))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.2, 4.8, 12), y=np.random.uniform(y_b_peak-1.1, y_b_peak-0.85, 12), mode='markers', marker=dict(color='#d62728', size=6, line=dict(color='white', width=0.3)), name='정공'))
+        
+        if mode == "순방향 활성 모드 (Forward Active)":
+            fig_band.add_trace(go.Scatter(x=[2.9, 3.3, 3.8, 4.4], y=[1.55, y_b_ec[4]+0.06, y_b_ec[12]+0.06, y_b_ec[21]+0.06], mode='markers', marker=dict(color='#1f77b4', size=7, symbol='circle')))
+            fig_band.add_annotation(x=3.8, y=y_b_peak+0.3, text="<b>🔥 확산 (Diffusion)</b>", showarrow=False, font=dict(color="#ff7f0e", size=11))
+            
+            fig_band.add_trace(go.Scatter(x=[4.1, 4.1], y=[y_b_ec[16]+0.05, y_b_peak-0.85], mode='lines+markers', line=dict(color='red', width=1.5, dash='dash'), marker=dict(symbol='triangle-down', size=6)))
+            fig_band.add_annotation(x=4.5, y=y_b_peak-0.4, text="재결합<br>(Recombination)", showarrow=False, font=dict(color="red", size=9))
+            
+            fig_band.add_trace(go.Scatter(x=[5.1, 5.8, 6.8, 7.6], y=[y_c_ec[2]+0.06, y_c_ec[12]+0.06, y_c_ec[25]+0.06, y_c_ec[37]+0.06], mode='markers+lines', line=dict(color='red', width=1, dash='dot'), marker=dict(color='#1f77b4', size=7, symbol='arrow', angleref='previous')))
+            fig_band.add_annotation(x=6.4, y=y_c_target+0.4, text="<b>⚡ 표류 (Drift)</b>", showarrow=False, font=dict(color="red", size=11))
     else:
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2, 2.8, 18), y=np.random.uniform(0.1, 0.3, 18), mode='markers', marker=dict(color='#d62728', size=7, line=dict(color='white', width=0.5))))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2, 2.8, 20), y=np.random.uniform(0.1, 0.3, 20), mode='markers', marker=dict(color='#d62728', size=6.5, line=dict(color='white', width=0.3))))
+        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.2, 4.8, 12), y=np.random.uniform(y_b_peak+0.85, y_b_peak+1.1, 12), mode='markers', marker=dict(color='#1f77b4', size=6, line=dict(color='white', width=0.3))))
+        if mode == "순방향 활성 모드 (Forward Active)":
+            fig_band.add_trace(go.Scatter(x=[2.9, 3.5, 4.5, 5.4, 6.8], y=[0.3, y_ev[45]-0.06, y_ev[62]-0.06, y_ev[82]-0.06, y_ev[105]-0.06], mode='markers+lines', line=dict(color='#9467bd', width=1.5, dash='dot'), marker=dict(color='#d62728', size=7, symbol='arrow', angleref='previous')))
+
+    fig_band.add_annotation(x=1.5, y=3.5, text="<b>EMITTER (N+)</b>" if bjt_type=="NPN" else "<b>EMITTER (P+)</b>", showarrow=False, font=dict(size=12, color="#1f77b4"))
+    fig_band.add_annotation(x=4.0, y=3.5, text="<b>BASE (P)</b>" if bjt_type=="NPN" else "<b>BASE (N)</b>", showarrow=False, font=dict(size=12, color="#ff7f0e"))
+    fig_band.add_annotation(x=6.5, y=3.5, text="<b>COLLECTOR (N)</b>" if bjt_type=="NPN" else "<b>COLLECTOR (P)</b>", showarrow=False, font=dict(size=12, color="#2ca02c"))
 
     fig_band.update_layout(
-        title="<b>🔋 6주차 강의자료 동기화: 동적 에너지 밴드 다이어그램</b>",
-        xaxis=dict(visible=False, range=[-0.2, 8.2]), yaxis=dict(visible=False, range=[-1.8, 4.2]),
+        title="<b>🔋 6주차 강의자료 동기화: 동적 에너지 밴드 다이어그램 (풀 고증)</b>",
+        xaxis=dict(visible=False, range=[-0.2, 8.4]), yaxis=dict(visible=False, range=[-1.8, 4.2]),
         height=280, margin=dict(l=10, r=10, t=40, b=10), showlegend=False, plot_bgcolor='white'
     )
     st.plotly_chart(fig_band, use_container_width=True)
 
     # ------------------------------------------------------------------
-    # [차트 2] 버그 수정본: 정밀 수식 연동형 직류 부하선 & Q-point 차트
+    # [차트 2] 수식 교정 완료: 정밀 연동형 직류 부하선 & 특성 곡선 패밀리 (7주차 기반)
     # ------------------------------------------------------------------
     v_mesh = np.linspace(0, V_CC + 1.0, 150)
     fig_iv = go.Figure()
     
-    # 배경 가이드라인 세트 플로팅
     ib_list_uA = [10, 20, 30, 40, 50]
     for idx, ib_each in enumerate(ib_list_uA):
         curves_mA = []
         for v in v_mesh:
-            ideal_ic = (ib_each * 130 / 1000) * (1 - np.exp(-v / 0.25)) + 0.04 * v
+            ideal_ic = (ib_each * 130 / 1000) * (1 - np.exp(-v / 0.25)) + 0.038 * v
             curves_mA.append(ideal_ic)
-        fig_iv.add_trace(go.Scatter(x=v_mesh, y=curves_mA, mode='lines', line=dict(color='rgba(255, 127, 14, 0.4)' if bjt_type=="NPN" else 'rgba(148, 103, 189, 0.4)', width=2), showlegend=False))
+        fig_iv.add_trace(go.Scatter(x=v_mesh, y=curves_mA, mode='lines', line=dict(color='rgba(255, 127, 14, 0.45)' if bjt_type=="NPN" else 'rgba(148, 103, 189, 0.45)', width=2), showlegend=False))
+        if idx == len(ib_list_uA) - 1:
+            fig_iv.add_annotation(x=V_CC+0.5, y=curves_mA[-1]+0.15, text=f"I_B = {ib_each}uA", showarrow=False, font=dict(size=10, color="gray"))
 
-    # 직류 부하선 플로팅
     v_load_mesh = np.linspace(0, V_CC, 100)
     i_load_mA = (-(1 / R_C) * v_load_mesh + (V_CC / R_C)) * 1000
     fig_iv.add_trace(go.Scatter(x=v_load_mesh, y=i_load_mA, mode='lines', line=dict(color='#000000', width=2.5)))
     
-    # [버그 수정] 부하선 위정밀 연동 좌표에 동작점 마커 매핑
+    # 부하선 정렬 고증이 완료된 진짜 Q점 플로팅
     fig_iv.add_trace(go.Scatter(
         x=[q_vce_point], y=[q_ic_point], mode='markers',
         marker=dict(color='red', size=14, symbol='circle', line=dict(color='white', width=1.5)),
         name='동작점 Q'
     ))
     
-    fig_iv.add_annotation(x=0.4, y=max_ic_mA-0.2, text="포화점(Saturation)", showarrow=True, arrowhead=1)
-    fig_iv.add_annotation(x=V_CC, y=0.3, text="차단점(Cut-off)", showarrow=True, arrowhead=1)
+    fig_iv.add_annotation(x=0.35, y=max_ic_mA-0.2, text="<b>포화점(Saturation)</b>", showarrow=True, arrowhead=1, arrowcolor="black")
+    fig_iv.add_annotation(x=V_CC, y=0.25, text="<b>차단점(Cut-off)</b>", showarrow=True, arrowhead=1, arrowcolor="black")
     fig_iv.add_annotation(x=q_vce_point, y=q_ic_point+0.5, text=f"<b>Q ({q_vce_point:.2f}V, {q_ic_point:.2f}mA)</b>", showarrow=False, font=dict(color="red", size=11))
     
     fig_iv.update_layout(
