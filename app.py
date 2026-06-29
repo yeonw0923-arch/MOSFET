@@ -273,10 +273,9 @@ with col_mid:
     abs_vds      = abs(vds)
     abs_vth      = abs(vth)
     vgs_eff_plot = max(abs(vgs) - abs_vth, 0.0)
-    # 표시 스케일: 5V → 최대 0.8eV 강하로 제한 (그래프 가독성)
-    # 실제 물리값(eV=V)이 아닌 시각화용 배율
-    SCALE     = 0.16   # eV/V (5V → 0.8eV)
-    MAX_DROP  = 0.8    # 최대 표시 강하량
+    # 표시 스케일: 5V → 최대 1.2eV 강하로 제한
+    SCALE     = 0.25   # eV/V (5V → 1.25eV)
+    MAX_DROP  = 1.2    # 최대 표시 강하량
 
     E0    = 2.0        # 소스 E_c 기준
     Ev0   = E0 - Eg    # 소스 E_v = 0.88
