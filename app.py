@@ -1,576 +1,422 @@
 import streamlit as st
-import plotly.graph_objects as go
 import numpy as np
-import streamlit.components.v1 as components
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Polygon as MplPolygon
+import plotly.graph_objects as go
+import requests
 
-st.set_page_config(layout="wide", page_title="BJT 시뮬레이터")
+st.set_page_config(page_title="MOSFET SIMULATOR", page_icon="🔌", layout="wide")
 
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] { min-width:260px; max-width:260px; }
+    [data-testid="stSidebarUserContent"] { padding-top: 0rem !important; }
+    [data-testid="stSidebarNav"] { display: none !important; }
     [data-testid="stSidebar"] .element-container,
-    [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p { margin-bottom:0.2rem !important; }
+    [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p {
+        margin-bottom: 0px !important; margin-top: 0px !important; }
+    [data-testid="stSidebar"] h3 { font-size:0.95rem !important; margin-bottom:5px !important; margin-top:5px !important; }
     [data-testid="stSidebar"] hr { margin:6px 0 !important; }
-    [data-testid="stSidebar"] .stSlider { margin-top:-15px !important; margin-bottom:-5px !important; }
-    [data-testid="stSidebar"] .stNumberInput div[data-baseweb="input"],
-    [data-testid="stSidebar"] .stNumberInput div[data-baseweb="base-input"] { background-color:#fff !important; }
-    [data-testid="stSidebar"] .stNumberInput input {
-        height:26px !important; padding:1px 4px !important;
-        font-size:0.75rem !important; color:#2c3e50 !important; background:#fff !important; }
-    [data-testid="stSidebar"] .stTextArea textarea {
-        font-size:0.78rem !important; padding:5px !important; color:#2c3e50 !important; }
-    div[data-testid="stRadio"] > div { flex-direction:row !important; gap:4px !important; }
-    .block-container { padding-top:0.8rem !important; padding-bottom:1rem !important; }
-    .card { background:#fff; border-radius:12px; padding:16px;
-            border:1px solid #eaeaea; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
-    .stat-label { font-size:0.68rem; color:#95a5a6; font-weight:600; }
-    .stat-value { font-size:1.05rem; font-weight:700; color:#2c3e50; }
-    .sec-title { font-size:0.72rem; font-weight:700; color:#64748b;
-                 text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
+    [data-testid="stSidebar"] .stSlider { margin-top:0px !important; padding-bottom:0px !important; margin-bottom:-10px !important; }
+    [data-testid="stSidebar"] .stSelectbox { margin-top:-4px !important; margin-bottom:-4px !important; }
+    [data-testid="stSidebar"] .stTextArea { margin-top:4px !important; margin-bottom:-4px !important; }
+    [data-testid="stSidebar"] .stTextArea textarea { font-size:0.78rem !important; }
+    .stat-card { background:#ffffff; border-radius:12px; padding:16px; border:1px solid #eaeaea; box-shadow:0px 4px 10px rgba(0,0,0,0.02); height:100%; }
+    .stat-title { font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; margin-bottom:4px; }
+    .stat-label { font-size:0.7rem; color:#94a3b8; font-weight:600; margin-bottom:2px; }
+    .stat-value { font-size:1.15rem; font-weight:700; color:#1e293b; }
+    .section-header { font-size:1.25rem; font-weight:800; color:#334155; margin-top:0px; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+    .block-container { padding-top:2.5rem !important; padding-bottom:1rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
-if "GEMINI_API_KEY" in st.secrets:
-    import google.generativeai as genai
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+GEMINI_URL = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+              f"gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}")
 
-# ── 사이드바 ──────────────────────────────────────────────────────────
+def call_gemini(prompt):
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        resp = requests.post(GEMINI_URL, json=payload, timeout=30)
+        resp.raise_for_status()
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except requests.exceptions.HTTPError as e:
+        return f"❌ HTTP 오류: {e.response.status_code} {e.response.text}"
+    except Exception as e:
+        return f"❌ API 통신 오류: {e}"
+
+for key, default in [("vth_val", 1.0), ("vgs_val", 2.6), ("vds_val", 3.7)]:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
 with st.sidebar:
-    st.markdown("### 🔌 BJT 시뮬레이터")
-    bjt_type = st.radio("타입", ["NPN","PNP"], horizontal=True, label_visibility="collapsed")
-    st.markdown("---")
-    st.markdown("<span style='font-size:0.8rem;font-weight:700;color:#1e293b;'>접합 전압 인가</span>", unsafe_allow_html=True)
+    if st.button("⬅ 홈으로 돌아가기", use_container_width=True):
+        st.switch_page("app.py")
+    st.markdown("### 🎛️ 제어 및 입력 패널")
+    device = st.selectbox("소자 타입 선택", ["NMOS", "PMOS"])
+    st.sidebar.divider()
+    st.markdown("<span style='font-size:0.75rem;font-weight:700;color:#2c3e50;'>문턱 전압 |V_TH| (V)</span>", unsafe_allow_html=True)
+    st.sidebar.write("")
+    vth = st.slider("V_TH", 0.0, 2.0, value=float(st.session_state["vth_val"]), step=0.1, key="vth_slide", label_visibility="collapsed")
+    st.session_state["vth_val"] = vth
+    st.markdown("<span style='font-size:0.75rem;font-weight:700;color:#2c3e50;'>게이트 전압 V_GS (V)</span>", unsafe_allow_html=True)
+    st.sidebar.write("")
+    vgs = st.slider("V_GS", 0.0, 5.0, value=float(st.session_state["vgs_val"]), step=0.1, key="vgs_slide", label_visibility="collapsed")
+    st.session_state["vgs_val"] = vgs
+    st.markdown("<span style='font-size:0.75rem;font-weight:700;color:#2c3e50;'>드레인 전압 V_DS (V)</span>", unsafe_allow_html=True)
+    st.sidebar.write("")
+    vds = st.slider("V_DS", 0.0, 5.0, value=float(st.session_state["vds_val"]), step=0.1, key="vds_slide", label_visibility="collapsed")
+    st.session_state["vds_val"] = vds
+    st.sidebar.divider()
+    st.markdown("<span style='font-size:0.8rem;font-weight:700;color:#1e293b;'>🤖 ASK AI</span>", unsafe_allow_html=True)
+    user_question = st.text_area("", height=80, placeholder="e.g. 현재 전압 조건 상태에 대해 물리적으로 쉽게 설명해줘.", label_visibility="collapsed")
+    ask_btn = st.button("🤖 AI 실시간 해설 보기", use_container_width=True, type="primary")
 
-    if "v_be_val" not in st.session_state: st.session_state.v_be_val = 0.75
-    if "v_bc_val" not in st.session_state: st.session_state.v_bc_val = -2.0
-
-    def update_be_slider(): st.session_state.v_be_val = st.session_state.be_num
-    def update_be_num():    st.session_state.be_num   = st.session_state.v_be_val
-    def update_bc_slider(): st.session_state.v_bc_val = st.session_state.bc_num
-    def update_bc_num():    st.session_state.bc_num   = st.session_state.v_bc_val
-
-    label_be = "V_BE (V)" if bjt_type=="NPN" else "V_EB (V)"
-    st.markdown(f"<span style='font-size:0.75rem;font-weight:700;color:#2c3e50;'>{label_be}</span>", unsafe_allow_html=True)
-    V_be = st.slider(label_be, min_value=-1.0, max_value=1.0, step=0.05,
-                     key="v_be_val", on_change=update_be_num, label_visibility="collapsed")
-    st.number_input(label_be, min_value=-1.0, max_value=1.0, step=0.05,
-                    key="be_num", on_change=update_be_slider,
-                    value=st.session_state.v_be_val, label_visibility="collapsed")
-
-    label_bc = "V_BC (V)" if bjt_type=="NPN" else "V_CB (V)"
-    st.markdown(f"<span style='font-size:0.75rem;font-weight:700;color:#2c3e50;'>{label_bc}</span>", unsafe_allow_html=True)
-    V_bc = st.slider(label_bc, min_value=-5.0, max_value=5.0, step=0.1,
-                     key="v_bc_val", on_change=update_bc_num, label_visibility="collapsed")
-    st.number_input(label_bc, min_value=-5.0, max_value=5.0, step=0.1,
-                    key="bc_num", on_change=update_bc_slider,
-                    value=st.session_state.v_bc_val, label_visibility="collapsed")
-
-    st.markdown("---")
-    st.markdown("<span style='font-size:0.8rem;font-weight:700;color:#1e293b;'>💬 AI 질문</span>", unsafe_allow_html=True)
-    user_question = st.text_area("질문", height=80, label_visibility="collapsed",
-                                 value="현재 바이어스 상태가 증폭기로서 왜 적합한지 밴드 다이어그램 관점에서 설명해줘.")
-    ai_btn = st.button("🚀 Gemini 분석 요청", use_container_width=True)
-
-# ── 파라미터 계산 ─────────────────────────────────────────────────────
-V_CC=5.0; R_C=800.0; beta=150; V_AF=100.0; early_k=1.0/V_AF
-be_fwd = V_be > 0
-bc_fwd = V_bc > 0
-
-if   be_fwd and not bc_fwd: mode="순방향 활성 영역"; mode_en="Forward Active"; mode_color="#f39c12"; anim_key="forward_active"
-elif be_fwd and     bc_fwd: mode="포화 영역";        mode_en="Saturation";     mode_color="#28a745"; anim_key="saturation"
-elif not be_fwd and bc_fwd: mode="역방향 활성 영역"; mode_en="Reverse Active"; mode_color="#9b59b6"; anim_key="reverse_active"
-else:                       mode="차단 영역";        mode_en="Cutoff";         mode_color="#dc3545"; anim_key="cutoff"
-
-R_B_eff=30000.0
-I_B_A = max(0.0, V_be/R_B_eff) if be_fwd else 0.0
-if mode_en=="Forward Active":
-    q_ic_A=max(0.0,min(beta*I_B_A,(V_CC-0.2)/R_C)); q_vce=max(0.2,V_CC-q_ic_A*R_C)
-elif mode_en=="Saturation":
-    q_vce=0.2; q_ic_A=(V_CC-q_vce)/R_C
-else:
-    q_vce=V_CC; q_ic_A=0.0
-q_ic_mA = q_ic_A*1000
-
-desc_map = {
-    "forward_active": "B-E 순방향 + B-C 역방향 → 전자 확산 후 표류 → 증폭기 동작",
-    "saturation":     "양쪽 접합 순방향 → 캐리어 범람 → 닫힌 스위치 (V_CE ≈ 0.2V)",
-    "reverse_active": "B-E 역방향 + B-C 순방향 → C→E 방향 역전 흐름",
-    "cutoff":         "양쪽 접합 역방향 → 전위장벽↑ → 캐리어 이동 없음 → 개방 스위치",
-}
-
-# ── SVG 소자 구조도 ───────────────────────────────────────────────────
-if bjt_type=="NPN":
-    ef,es,el="#1a3a5c","#3a7abf","N⁺"; bf,bs,bl,bt="#4a1a3a","#bf3a8a","P","#f9c"
-    cf,cs,cl="#1a3a1a","#3abf3a","N"; vl1,vl2=f"V_BE={V_be:.2f}V",f"V_BC={V_bc:.2f}V"
-else:
-    ef,es,el="#5c1a1a","#bf3a3a","P⁺"; bf,bs,bl,bt="#1a3a2a","#3abf6a","N","#9fc"
-    cf,cs,cl="#3a2a1a","#bf8a3a","P"; vl1,vl2=f"V_EB={V_be:.2f}V",f"V_CB={V_bc:.2f}V"
-
-# BE/BC 접합 순방향/역방향 표기
-be_label = "순방향 ▶" if be_fwd else "◀ 역방향"
-bc_label = "순방향 ▶" if bc_fwd else "◀ 역방향"
-be_svg_color = "#e74c3c" if be_fwd else "#3498db"
-bc_svg_color = "#e74c3c" if bc_fwd else "#3498db"
-be_ax1, be_ax2 = (160, 183) if be_fwd else (183, 160)
-bc_ax1, bc_ax2 = (257, 280) if bc_fwd else (280, 257)
-
-bjt_svg = f"""<svg width="560" height="135" style="display:block;max-width:100%;background:white;border-radius:8px;">
-  <defs>
-    <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5"/></marker>
-  </defs>
-
-  <!-- ── 소자 블록 ── -->
-  <rect x="80"  y="18" width="110" height="44" rx="3"
-        fill="rgba(173,216,230,0.6)" stroke="#3a7abf" stroke-width="1.5"/>
-  <text x="135" y="37" text-anchor="middle" fill="#1a3a5c" font-size="13" font-family="monospace" font-weight="bold">{el}</text>
-  <text x="135" y="53" text-anchor="middle" fill="#1565C0" font-size="9"  font-family="monospace">Emitter</text>
-  <rect x="190" y="18" width="70"  height="44" rx="0"
-        fill="rgba(255,182,193,0.6)" stroke="#bf3a8a" stroke-width="1.5"/>
-  <text x="225" y="37" text-anchor="middle" fill="#7B1818" font-size="13" font-family="monospace" font-weight="bold">{bl}</text>
-  <text x="225" y="53" text-anchor="middle" fill="#B71C1C" font-size="9"  font-family="monospace">Base</text>
-  <rect x="260" y="18" width="110" height="44" rx="3"
-        fill="rgba(144,238,144,0.6)" stroke="#3abf3a" stroke-width="1.5"/>
-  <text x="315" y="37" text-anchor="middle" fill="#1B5E20" font-size="13" font-family="monospace" font-weight="bold">{cl}</text>
-  <text x="315" y="53" text-anchor="middle" fill="#1B5E20" font-size="9"  font-family="monospace">Collector</text>
-
-  <!-- ── 단자 배선 ── -->
-  <line x1="30"  y1="40" x2="78"  y2="40" stroke="#555" stroke-width="1.5" marker-end="url(#ar2)"/>
-  <text x="22"   y="44" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">E</text>
-  <line x1="372" y1="40" x2="400" y2="40" stroke="#555" stroke-width="1.5"/>
-  <text x="410"  y="44" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">C</text>
-  <line x1="225" y1="62" x2="225" y2="80"  stroke="#555" stroke-width="1.5"/>
-  <text x="225"  y="93" text-anchor="middle" fill="#333" font-size="12" font-family="monospace" font-weight="bold">B</text>
-
-  <!-- ── V_BE 배터리 회로 ──
-    E쪽이 + : NPN역방향 or PNP순방향
-    긴선(+극)이 E쪽에 오면: 120=긴, 127=짧, 134=긴, 141=짧
-    짧은선(-극)이 E쪽에 오면: 120=짧, 127=긴, 134=짧, 141=긴
-  -->
-  <line x1="30"  y1="40"  x2="30"  y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="30"  y1="110" x2="118" y2="110" stroke="#555" stroke-width="1.2"/>
-  {"<!-- E쪽 + : 긴선부터 -->" if not be_fwd else "<!-- E쪽 - : 짧은선부터 -->"}
-  <line x1="120" y1="{'104' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '107'}" x2="120" y2="{'116' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '113'}" stroke="#1565C0" stroke-width="2.5"/>
-  <line x1="127" y1="{'107' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '104'}" x2="127" y2="{'113' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '116'}" stroke="#1565C0" stroke-width="1.5"/>
-  <line x1="134" y1="{'104' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '107'}" x2="134" y2="{'116' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '113'}" stroke="#1565C0" stroke-width="2.5"/>
-  <line x1="141" y1="{'107' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '104'}" x2="141" y2="{'113' if (bjt_type=='NPN' and not be_fwd) or (bjt_type=='PNP' and be_fwd) else '116'}" stroke="#1565C0" stroke-width="1.5"/>
-  <line x1="141" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="225" y1="110" x2="225" y2="82"  stroke="#555" stroke-width="1.2"/>
-  <text x="112" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"+" if not be_fwd else "−"}</text>
-  <text x="149" y="108" text-anchor="middle" fill="#1565C0" font-size="13" font-weight="bold">{"−" if not be_fwd else "+"}</text>
-  <text x="140" y="128" text-anchor="middle" fill="#1565C0" font-size="9" font-family="monospace" font-weight="bold">{vl1} ({'순방향' if be_fwd else '역방향'})</text>
-
-  <!-- ── V_BC 배터리 회로 ──
-    C쪽이 + : NPN순방향 or PNP역방향
-    긴선(+극)이 C쪽에 오면: 330=긴, 323=짧, 316=긴, 309=짧
-    짧은선(-극)이 C쪽에 오면: 330=짧, 323=긴, 316=짧, 309=긴
-  -->
-  <line x1="400" y1="40"  x2="400" y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="400" y1="110" x2="332" y2="110" stroke="#555" stroke-width="1.2"/>
-  <line x1="330" y1="{'104' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '107'}" x2="330" y2="{'116' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '113'}" stroke="#B71C1C" stroke-width="2.5"/>
-  <line x1="323" y1="{'107' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '104'}" x2="323" y2="{'113' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '116'}" stroke="#B71C1C" stroke-width="1.5"/>
-  <line x1="316" y1="{'104' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '107'}" x2="316" y2="{'116' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '113'}" stroke="#B71C1C" stroke-width="2.5"/>
-  <line x1="309" y1="{'107' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '104'}" x2="309" y2="{'113' if (bjt_type=='NPN' and bc_fwd) or (bjt_type=='PNP' and not bc_fwd) else '116'}" stroke="#B71C1C" stroke-width="1.5"/>
-  <line x1="309" y1="110" x2="225" y2="110" stroke="#555" stroke-width="1.2"/>
-  <text x="338" y="108" text-anchor="middle" fill="#B71C1C" font-size="13" font-weight="bold">{"+" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "−"}</text>
-  <text x="301" y="108" text-anchor="middle" fill="#B71C1C" font-size="13" font-weight="bold">{"−" if (bjt_type=="NPN" and bc_fwd) or (bjt_type=="PNP" and not bc_fwd) else "+"}</text>
-  <text x="312" y="128" text-anchor="middle" fill="#B71C1C" font-size="9" font-family="monospace" font-weight="bold">{vl2} ({'순방향' if bc_fwd else '역방향'})</text>
-
-  <!-- BJT 타입 -->
-  <text x="490" y="32" fill="#555" font-size="11" font-family="monospace" font-weight="bold">{bjt_type}</text>
-  <text x="490" y="46" fill="#888" font-size="9"  font-family="monospace">BJT</text>
-
-  <!-- 현재 모드 배너 -->
-  <rect x="80" y="68" width="290" height="15" rx="3" fill="{mode_color}" opacity="0.15"/>
-  <text x="225" y="78" text-anchor="middle" fill="{mode_color}"
-        font-size="9" font-family="monospace" font-weight="bold">{mode} ({mode_en})</text>
-</svg>"""
-
-# ════════════════════════════════════════════════════════════════════
-#  LAYOUT
-#  Row 1: [동작영역 카드 (45%)] [캐리어 애니메이션 (55%)]
-#  Row 2: [에너지밴드 다이어그램 (50%)] [I-V 특성 곡선 (50%)]
-#  Row 3: [AI 해설 전체 너비]
-# ════════════════════════════════════════════════════════════════════
-
-# ── Row 1: 동작영역 + 캐리어 애니메이션 ──────────────────────────────
-row1_left, row1_right = st.columns([0.42, 0.58])
-
-with row1_left:
-    st.markdown("<div class='sec-title'>📌 동작 영역</div>", unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class='card'>
-      <div style='font-size:0.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px;'>Operating Region</div>
-      <div style='font-size:1.4rem;font-weight:800;color:{mode_color};margin-bottom:12px;'>
-        {mode}<br><span style='font-size:0.88rem;font-weight:500;'>({mode_en})</span>
-      </div>
-      <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
-        <div><div class='stat-label'>인가전압 V_CE</div><div class='stat-value'>{abs(V_be-V_bc):.2f} V</div></div>
-        <div><div class='stat-label'>컬렉터전류 I_C</div><div class='stat-value'>{q_ic_mA:.2f} mA</div></div>
-        <div><div class='stat-label'>베이스전류 I_B</div><div class='stat-value'>{I_B_A*1e6:.1f} μA</div></div>
-        <div><div class='stat-label'>Q점 V_CEQ</div><div class='stat-value'>{q_vce:.2f} V</div></div>
-      </div>
-      <div style='margin-top:12px;padding:10px;background:#f8fafc;border-radius:8px;
-                  border-left:3px solid {mode_color};font-size:0.8rem;color:{mode_color};
-                  font-weight:600;line-height:1.5;'>
-        {desc_map[anim_key]}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with row1_right:
-    st.markdown("<div class='sec-title'>⚡ 캐리어 이동 애니메이션</div>", unsafe_allow_html=True)
-    canvas_html = f"""
-<div style="display:flex;flex-direction:column;gap:8px;">
-  {bjt_svg}
-  <canvas id="bjtCvs" width="560" height="120"
-    style="background:#ffffff;border-radius:8px;display:block;width:100%;border:1px solid #eaeaea;
-           box-shadow:0 2px 8px rgba(0,0,0,0.05);"></canvas>
-  <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
-    <span style="color:#1565C0;font-weight:700;">● 전자 (Electron)</span>&nbsp;&nbsp;
-    <span style="color:#B71C1C;font-weight:700;">● 정공 (Hole)</span>
-  </div>
-</div>
-<script>
-(function(){{
-  const c=document.getElementById('bjtCvs');
-  if(!c)return;
-  if(c._aid)cancelAnimationFrame(c._aid);
-  const ctx=c.getContext('2d');
-  const W=c.width,H=c.height;
-  const MODE='{anim_key}',BJT='{bjt_type}';
-  const XBE=Math.round(W*0.33),XBC=Math.round(W*0.67),YM=H/2;
-
-  // ── 물리적 초기 배치 ──────────────────────────────────────────────
-  // NPN:
-  //   전자(e⁻) → 이미터(N+) 영역 + 컬렉터(N) 영역에 다수 존재
-  //   정공(h⁺) → 베이스(P) 영역에만 존재
-  // PNP:
-  //   정공(h⁺) → 이미터(P+) 영역 + 컬렉터(P) 영역에 다수 존재
-  //   전자(e⁻) → 베이스(N) 영역에만 존재
-  //
-  // 각 파티클: {{x, y, r, t('e'|'h'), zone('E'|'B'|'C'), recomb, recombT}}
-
-  function randY() {{ return YM - 35 + Math.random()*70; }}
-
-  let pts = [];
-
-  if(BJT === 'NPN') {{
-    // 이미터 전자 20개
-    for(let i=0;i<20;i++) pts.push({{x:Math.random()*(XBE-10)+5, y:randY(), r:4.2, t:'e', zone:'E', recomb:false, recombT:0}});
-    // 컬렉터 전자 16개
-    for(let i=0;i<16;i++) pts.push({{x:Math.random()*(W-XBC-10)+XBC+5, y:randY(), r:4.2, t:'e', zone:'C', recomb:false, recombT:0}});
-    // 베이스 정공 12개
-    for(let i=0;i<12;i++) pts.push({{x:Math.random()*(XBC-XBE-10)+XBE+5, y:randY(), r:4.0, t:'h', zone:'B', recomb:false, recombT:0}});
-  }} else {{
-    // PNP: 이미터 정공, 컬렉터 정공, 베이스 전자
-    for(let i=0;i<20;i++) pts.push({{x:Math.random()*(XBE-10)+5, y:randY(), r:4.0, t:'h', zone:'E', recomb:false, recombT:0}});
-    for(let i=0;i<16;i++) pts.push({{x:Math.random()*(W-XBC-10)+XBC+5, y:randY(), r:4.0, t:'h', zone:'C', recomb:false, recombT:0}});
-    for(let i=0;i<12;i++) pts.push({{x:Math.random()*(XBC-XBE-10)+XBE+5, y:randY(), r:4.2, t:'e', zone:'B', recomb:false, recombT:0}});
-  }}
-
-  // ── 재결합 이벤트 타이머 ──────────────────────────────────────────
-  let recombEvents = [];  // {{x, y, t(남은 프레임)}}
-
-  function frame(){{
-    ctx.clearRect(0,0,W,H);
-
-    // 배경
-    ctx.fillStyle='rgba(173,216,230,0.35)';  ctx.fillRect(0,0,XBE,H);
-    ctx.fillStyle='rgba(255,182,193,0.35)';   ctx.fillRect(XBE,0,XBC-XBE,H);
-    ctx.fillStyle='rgba(144,238,144,0.35)';   ctx.fillRect(XBC,0,W-XBC,H);
-
-    // 경계선
-    [XBE,XBC].forEach(x=>{{
-      ctx.strokeStyle='rgba(100,100,100,0.4)';ctx.lineWidth=1;
-      ctx.setLineDash([4,4]);
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
-      ctx.setLineDash([]);
-    }});
-
-    // 영역 라벨
-    ctx.font='bold 10px monospace';
-    ctx.fillStyle='#1565C0'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,15);
-    ctx.fillStyle='#B71C1C'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,15);
-    ctx.fillStyle='#1B5E20'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,15);
-
-    // 재결합 플래시 렌더링
-    recombEvents = recombEvents.filter(ev => ev.t > 0);
-    recombEvents.forEach(ev => {{
-      const alpha = ev.t / 25;
-      const r = (25 - ev.t) * 0.6 + 4;
-      ctx.beginPath();
-      ctx.arc(ev.x, ev.y, r, 0, Math.PI*2);
-      ctx.strokeStyle = `rgba(255,220,50,${{alpha}})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ev.t--;
-    }});
-
-    // ── 파티클 업데이트 ────────────────────────────────────────────
-    pts.forEach(p => {{
-      // 주 캐리어 색 (NPN: 전자=파랑, 정공=빨강 / PNP 동일)
-      const col = p.t==='e' ? '#1565C0' : '#B71C1C';
-      ctx.shadowBlur=4; ctx.shadowColor=col; ctx.fillStyle=col;
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-
-      let vx=0, vy=0;
-
-      if(MODE==='cutoff') {{
-        // 차단: 완전 정지 (열진동만)
-        vx=(Math.random()-0.5)*0.5;
-        vy=(Math.random()-0.5)*0.5;
-
-      }} else if(MODE==='forward_active') {{
-        // ── NPN 순방향 활성 ──────────────────────────────────────
-        // 전자: 이미터에서 베이스 통과 후 컬렉터로 (왼→오)
-        // 정공: 베이스 안에서만 브라운 운동 (일부 재결합)
-        if(BJT==='NPN') {{
-          if(p.t==='e') {{
-            vx = 3.5;  // 이미터→컬렉터 방향
-            vy = (Math.random()-0.5)*0.8;
-            if(p.x > W) {{ p.x=5; p.zone='E'; }}  // 리셋: 이미터로 돌아감
-          }} else {{
-            // NPN 베이스 정공: 베이스→이미터 방향으로 역확산
-            // (교안 그림 2-7: 정공이 이미터 방향으로 확산되며 일부 재결합)
-            vx = -1.5 + (Math.random()-0.5)*1.5;
-            vy = (Math.random()-0.5)*2.0;
-            // 이미터 영역으로 넘어가면 재결합 플래시 후 베이스로 리셋
-            if(p.x < XBE - 8) {{
-              recombEvents.push({{x:p.x, y:p.y, t:22}});
-              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
-              p.y = randY();
-            }}
-            // BC 경계는 못 넘음
-            if(p.x > XBC-4) p.x = XBC-4;
-            // 베이스 통과 중인 전자와 재결합
-            if(Math.random() < 0.004) {{
-              recombEvents.push({{x:p.x, y:p.y, t:25}});
-              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
-              p.y = randY();
-            }}
-          }}
-        // ── PNP 순방향 활성 ──────────────────────────────────────
-        }} else {{
-          if(p.t==='h') {{
-            vx = 3.5;
-            vy = (Math.random()-0.5)*0.8;
-            if(p.x > W) {{ p.x=5; p.zone='E'; }}
-          }} else {{
-            // PNP 베이스 전자: 베이스→이미터 방향으로 역확산
-            vx = -1.5 + (Math.random()-0.5)*1.5;
-            vy = (Math.random()-0.5)*2.0;
-            if(p.x < XBE - 8) {{
-              recombEvents.push({{x:p.x, y:p.y, t:22}});
-              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
-              p.y = randY();
-            }}
-            if(p.x > XBC-4) p.x = XBC-4;
-            if(Math.random() < 0.004) {{
-              recombEvents.push({{x:p.x, y:p.y, t:25}});
-              p.x = Math.random()*(XBC-XBE-10)+XBE+5;
-              p.y = randY();
-            }}
-          }}
-        }}
-
-      }} else if(MODE==='saturation') {{
-        // ── 포화: 양쪽 접합 모두 순방향 ──────────────────────────
-        // 이미터→컬렉터 + 컬렉터→이미터 동시 흐름 (d로 방향 구분)
-        const mainType = BJT==='NPN' ? 'e' : 'h';
-        if(p.t===mainType) {{
-          vx = p.d * 3.0;
-          vy = (Math.random()-0.5)*1.0;
-        }} else {{
-          vx = p.d * 2.0;
-          vy = (Math.random()-0.5)*1.5;
-        }}
-        // wrapping: p.x += vx 이후에 체크
-        p.x += vx;
-        p.y += vy;
-        p.y = Math.max(22, Math.min(H-14, p.y));
-        if(p.x > W + 5)  {{ p.x = -5;  p.y = randY(); }}
-        if(p.x < -5)     {{ p.x = W+5; p.y = randY(); }}
-        return;  // forEach에서 continue 역할
-      }} else if(MODE==='reverse_active') {{
-        // ── 역방향 활성: 순방향 활성의 반대 ─────────────────────
-        // NPN: 전자가 컬렉터→이미터 방향 (오→왼)
-        // PNP: 정공이 컬렉터→이미터 방향 (오→왼)
-        const mainType = BJT==='NPN' ? 'e' : 'h';
-        if(p.t===mainType) {{
-          vx = -3.5;
-          vy = (Math.random()-0.5)*0.8;
-          if(p.x < 0) {{ p.x=W-5; }}
-        }} else {{
-          vx = (Math.random()-0.5)*1.2;
-          vy = (Math.random()-0.5)*1.2;
-          if(p.x < XBE+4) p.x = XBE+4;
-          if(p.x > XBC-4) p.x = XBC-4;
-        }}
-      }}
-
-      p.x += vx;
-      p.y += vy;
-      p.y = Math.max(22, Math.min(H-14, p.y));
-    }});
-
-    c._aid=requestAnimationFrame(frame);
-  }}
-  frame();
-}})();
-</script>
-"""
-    components.html(canvas_html, height=360)
-
-st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
-
-# ── Row 2: 에너지 밴드 + I-V 곡선 ────────────────────────────────────
-row2_left, row2_right = st.columns([0.50, 0.50])
-
-with row2_left:
-    st.markdown("<div class='sec-title'>🔋 에너지 밴드 다이어그램</div>", unsafe_allow_html=True)
-
-    E_g=1.12; x_all=np.linspace(0,8.0,400); ec_all=np.zeros_like(x_all)
-    v_be_eff=float(np.clip(V_be,-5.0,0.75)); v_bc_eff=float(np.clip(V_bc,-5.0,0.75))
-    if bjt_type=="NPN":
-        E_F_Base=0.0; E_V_Base=-0.1; E_C_Base=E_V_Base+E_g
-        E_F_Emitter=E_F_Base+v_be_eff; E_F_Collector=E_F_Base+v_bc_eff
-        E_C_Emitter=E_F_Emitter-0.05;  E_C_Collector=E_F_Collector-0.15
-    else:
-        E_F_Base=0.0; E_C_Base=0.1; E_V_Base=E_C_Base-E_g
-        E_F_Emitter=E_F_Base-v_be_eff; E_F_Collector=E_F_Base-v_bc_eff
-        E_V_Emitter=E_F_Emitter+0.05;  E_V_Collector=E_F_Collector+0.15
-        E_C_Emitter=E_V_Emitter+E_g;   E_C_Collector=E_V_Collector+E_g
-
-    for i,x in enumerate(x_all):
-        if   x<=2.4: ec_all[i]=E_C_Emitter
-        elif x>=5.6: ec_all[i]=E_C_Collector
-        elif 3.2<=x<=4.8: ec_all[i]=E_C_Base
-        elif 2.4<x<3.2:
-            t=(x-2.4)/0.8*np.pi; ec_all[i]=E_C_Emitter+(E_C_Base-E_C_Emitter)*(1-np.cos(t))/2
+def calc_mosfet(device, vgs, vds, vth, Kn=1.0, Kp=1.0):
+    if device == "NMOS":
+        vgs_eff = vgs - vth
+        vds_sat = max(vgs_eff, 0.0)
+        if vgs_eff <= 0:
+            region = "Cutoff";  id_mA = 0.0
+        elif vds < vgs_eff:
+            region = "Linear";  id_mA = round(Kn * (vgs_eff * vds - 0.5 * vds**2), 2)
         else:
-            t=(x-4.8)/0.8*np.pi; ec_all[i]=E_C_Base+(E_C_Collector-E_C_Base)*(1-np.cos(t))/2
-    ev_all=ec_all-E_g
-
-    fig_band=go.Figure()
-    fig_band.add_vrect(x0=0,  x1=2.8,fillcolor="rgba(173,216,230,0.25)",line_width=0)
-    fig_band.add_vrect(x0=2.8,x1=5.2,fillcolor="rgba(255,182,193,0.25)",line_width=0)
-    fig_band.add_vrect(x0=5.2,x1=8.0,fillcolor="rgba(144,238,144,0.25)",line_width=0)
-    fig_band.add_trace(go.Scatter(x=x_all,y=ec_all,mode='lines',line=dict(color='black',width=2.5),name='E_c'))
-    fig_band.add_trace(go.Scatter(x=x_all,y=ev_all,mode='lines',line=dict(color='black',width=2.5),name='E_v'))
-    fig_band.add_trace(go.Scatter(x=[0,2.4],  y=[E_F_Emitter,E_F_Emitter],  mode='lines',line=dict(color='blue',width=2,dash='dash'),name='E_F(E)'))
-    fig_band.add_trace(go.Scatter(x=[3.2,4.8],y=[E_F_Base,E_F_Base],        mode='lines',line=dict(color='blue',width=2,dash='dash'),name='E_F(B)'))
-    fig_band.add_trace(go.Scatter(x=[5.6,8.0],y=[E_F_Collector,E_F_Collector],mode='lines',line=dict(color='blue',width=2,dash='dash'),name='E_F(C)'))
-    fig_band.add_annotation(x=8.15,y=ec_all[-1]+0.05,text="<b>E_C</b>",showarrow=False,font=dict(size=12))
-    fig_band.add_annotation(x=8.15,y=ev_all[-1]-0.05,text="<b>E_V</b>",showarrow=False,font=dict(size=12))
-    e_lbl="EMITTER (N⁺)" if bjt_type=="NPN" else "EMITTER (P⁺)"
-    b_lbl="BASE (P)"      if bjt_type=="NPN" else "BASE (N)"
-    c_lbl="COLLECTOR (N)" if bjt_type=="NPN" else "COLLECTOR (P)"
-    fig_band.add_annotation(x=1.4,y=max(ec_all)+0.55,text=f"<b>{e_lbl}</b>",showarrow=False,font=dict(size=10,color='#1565C0'))
-    fig_band.add_annotation(x=4.0,y=max(ec_all)+0.55,text=f"<b>{b_lbl}</b>",showarrow=False,font=dict(size=10,color='#B71C1C'))
-    fig_band.add_annotation(x=6.6,y=max(ec_all)+0.55,text=f"<b>{c_lbl}</b>",showarrow=False,font=dict(size=10,color='#1B5E20'))
-    np.random.seed(42)
-    if bjt_type=="NPN":
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2,2.2,16),y=E_C_Emitter+np.random.uniform(0.02,0.15,16),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),name='전자(e⁻)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.4,4.6,10),y=E_V_Base-np.random.uniform(0.02,0.15,10),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(5.8,7.8,12),y=E_C_Collector+np.random.uniform(0.02,0.15,12),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),showlegend=False))
+            region = "Saturation"; id_mA = round(0.5 * Kn * vgs_eff**2, 2)
     else:
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(0.2,2.2,16),y=E_V_Emitter-np.random.uniform(0.02,0.15,16),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),name='정공(h⁺)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(3.4,4.6,10),y=E_C_Base+np.random.uniform(0.02,0.15,10),mode='markers',marker=dict(color='#1565C0',size=9,line=dict(color='#0D47A1',width=1.5)),name='전자(e⁻)'))
-        fig_band.add_trace(go.Scatter(x=np.random.uniform(5.8,7.8,12),y=E_V_Collector-np.random.uniform(0.02,0.15,12),mode='markers',marker=dict(color='#B71C1C',size=10,line=dict(color='#7B1818',width=1.5)),showlegend=False))
-    fig_band.add_vline(x=2.8,line=dict(color='gray',width=1,dash='dot'))
-    fig_band.add_vline(x=5.2,line=dict(color='gray',width=1,dash='dot'))
-    fig_band.update_layout(
-        xaxis=dict(visible=False,range=[-0.2,8.6]),
-        yaxis=dict(visible=False,range=[min(ev_all)-0.4,max(ec_all)+0.9]),
-        height=340,margin=dict(l=5,r=5,t=5,b=5),
-        showlegend=True,
-        legend=dict(x=0.01,y=0.02,bgcolor='rgba(255,255,255,0.85)',
-                    bordercolor='lightgray',borderwidth=1,font=dict(size=9),orientation='h'),
-        plot_bgcolor='white')
-    st.plotly_chart(fig_band, use_container_width=True)
+        vgs_real = -vgs; vds_real = -vds; vth_real = -vth
+        vgs_eff  = vth_real - vgs_real
+        vds_sat  = max(vgs_eff, 0.0)
+        if vgs_real >= vth_real:
+            region = "Cutoff";  id_mA = 0.0
+        elif abs(vds_real) < vgs_eff:
+            region = "Linear";  id_mA = round(Kp * (vgs_eff * abs(vds_real) - 0.5 * abs(vds_real)**2), 2)
+        else:
+            region = "Saturation"; id_mA = round(0.5 * Kp * vgs_eff**2, 2)
+    return region, id_mA, vds_sat
 
-with row2_right:
-    st.markdown("<div class='sec-title'>📈 I_C – V_CE 특성 곡선 & 직류 부하선</div>", unsafe_allow_html=True)
+region, id_mA, vds_sat = calc_mosfet(device, vgs, vds, vth)
+region_kr   = {"Cutoff":"차단 영역","Linear":"선형 영역","Saturation":"포화 영역"}.get(region, region)
+region_color= "#22c55e" if region=="Saturation" else "#f59e0b" if region=="Linear" else "#ef4444"
+region_desc = {
+    "Cutoff":     "V_GS < V_TH → 반전 채널 미형성 → 전류 차단 (OFF 스위치)",
+    "Linear":     "V_DS < V_GS − V_TH → 채널이 저항처럼 동작 (트라이오드)",
+    "Saturation": "V_DS ≥ V_GS − V_TH → 드레인 핀치오프 → 정전류원처럼 동작",
+}.get(region, "")
 
-    fig_iv=go.Figure()
-    sign=1 if bjt_type=="NPN" else -1
-    v_arr=np.linspace(0,V_CC+0.8,300)
-    bc=(255,127,14) if bjt_type=="NPN" else (148,103,189)
-    for idx,ib_uA in enumerate([10,20,30,40,50]):
-        ic_sat=beta*(ib_uA*1e-6)*1000
-        col=f"rgba({bc[0]},{bc[1]},{bc[2]},{0.38+0.13*idx:.2f})"
-        ic_c=[max(0.0,ic_sat*np.tanh(v/0.12)*(1+early_k*v)) for v in v_arr]
-        fig_iv.add_trace(go.Scatter(x=[sign*v for v in v_arr],y=[sign*ic for ic in ic_c],
-                                    mode='lines',line=dict(color=col,width=2.2),showlegend=False))
-        fig_iv.add_annotation(x=sign*(V_CC+0.85),y=sign*ic_sat*(1+early_k*(V_CC+0.8)),
-                               text=f"I_B={ib_uA}μA",showarrow=False,font=dict(size=9,color='gray'),
-                               xanchor='left' if bjt_type=="NPN" else 'right')
-    sat_ic=(V_CC/R_C)*1000
-    fig_iv.add_trace(go.Scatter(x=[0,sign*V_CC],y=[sign*sat_ic,0],
-                                 mode='lines',line=dict(color='black',width=2.8),name='직류 부하선'))
-    fig_iv.add_vline(x=sign*0.2,line=dict(color='purple',width=1.2,dash='dot'))
-    fig_iv.add_annotation(x=sign*0.22,y=sign*sat_ic*0.55,text="V_CE,sat",
-                           showarrow=False,font=dict(size=9,color='purple'),textangle=-90)
-    q_x,q_y=sign*q_vce,sign*q_ic_mA
-    fig_iv.add_trace(go.Scatter(x=[q_x],y=[q_y],mode='markers',
-                                 marker=dict(color='red',size=13,symbol='circle',line=dict(color='white',width=2)),
-                                 name=f"Q점"))
-    fig_iv.add_annotation(x=q_x,y=q_y+sign*0.4,
-                           text=f"<b>Q ({q_x:.2f}V, {q_y:.2f}mA)</b>",
-                           showarrow=False,font=dict(color='red',size=11))
-    fig_iv.add_shape(type='line',x0=q_x,x1=q_x,y0=0,y1=q_y,line=dict(color='red',width=1,dash='dash'))
-    fig_iv.add_shape(type='line',x0=0,x1=q_x,y0=q_y,y1=q_y,line=dict(color='red',width=1,dash='dash'))
-    fig_iv.add_annotation(x=sign*0.15,y=sign*(sat_ic+0.3),text="<b>포화점</b>",
-                           showarrow=True,ax=sign*0.7,ay=sign*(sat_ic-0.5),arrowhead=2,font=dict(size=10))
-    fig_iv.add_annotation(x=sign*(V_CC-0.15),y=sign*0.35,text="<b>차단점</b>",
-                           showarrow=True,ax=sign*(V_CC-0.9),ay=sign*0.9,arrowhead=2,font=dict(size=10))
-    xr=[-0.1,V_CC+1.3] if bjt_type=="NPN" else [-(V_CC+1.3),0.1]
-    yr=[-0.3,sat_ic+1.4] if bjt_type=="NPN" else [-(sat_ic+1.4),0.3]
-    fig_iv.update_layout(
-        xaxis_title="V_CE [V]",yaxis_title="I_C [mA]",
-        xaxis=dict(range=xr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
-        yaxis=dict(range=yr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
-        height=340,margin=dict(l=10,r=10,t=5,b=40),showlegend=True,
-        legend=dict(x=0.55 if bjt_type=="NPN" else 0.01,y=0.98 if bjt_type=="NPN" else 0.15,
-                    bgcolor='rgba(255,255,255,0.88)',bordercolor='#ddd',borderwidth=1,font=dict(size=10)),
-        plot_bgcolor='white')
-    st.plotly_chart(fig_iv, use_container_width=True)
+st.markdown(f"""
+<h1 style='text-align:left;font-size:2.2rem;font-weight:900;color:#1e293b;
+           margin-top:0;padding-bottom:12px;border-bottom:1px solid #e2e8f0;margin-bottom:24px;'>
+    🔌 {device} MOSFET SIMULATOR
+</h1>""", unsafe_allow_html=True)
 
-st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
+col_left, col_mid, col_right = st.columns([0.28, 0.46, 0.26], gap="medium")
 
-# ── Row 3: AI 해설 전체 너비 ─────────────────────────────────────────
-st.markdown("<div class='sec-title'>🤖 AI 상세 해설</div>", unsafe_allow_html=True)
-if ai_btn and "GEMINI_API_KEY" in st.secrets:
-    with st.spinner("분석 중..."):
-        try:
-            prompt = f"""반도체 소자 물리학 전문가. 인삿말 없이 바로 분석 시작.
-BJT={bjt_type}, V_BE={V_be:.2f}V, V_BC={V_bc:.2f}V, 모드={mode}({mode_en})
-I_B={I_B_A*1e6:.2f}μA, I_C={q_ic_mA:.2f}mA, V_CEQ={q_vce:.2f}V
-6주차 에너지밴드 교안(열적평형, 순방향 장벽 하강, 캐리어 확산/표류)과
-7주차 바이어스 교안(직류 부하선, Q점 설계, 왜곡 방지)을 연결하여
-한국어 마크다운으로 상세 답변하세요.
-질문: "{user_question}"
-"""
-            resp = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
-            st.markdown(f"""
-            <div style='background:#f8f9fa;padding:20px;border-radius:12px;
-                        border:1px solid #eaeaea;font-size:0.85rem;line-height:1.6;'>
-              <strong>💡 AI 물리적 해설</strong><br><br>{resp.text}
-            </div>""", unsafe_allow_html=True)
-        except Exception as e:
-            st.error(str(e))
-elif ai_btn:
-    st.error("GEMINI_API_KEY가 설정되지 않았습니다.")
-else:
+with col_left:
+    st.markdown("<div class='section-header'>📊 소자 상태</div>", unsafe_allow_html=True)
     st.markdown(f"""
-    <div style='background:#f8f9fa;padding:20px;border-radius:12px;border:1px solid #eaeaea;
-                display:flex;align-items:center;gap:16px;'>
-      <div style='font-size:2rem;'>🤖</div>
-      <div>
-        <div style='font-size:0.85rem;font-weight:700;color:#2c3e50;margin-bottom:4px;'>AI 상세 해설 대기 중</div>
-        <div style='font-size:0.8rem;color:#64748b;'>사이드바에서 질문을 입력하고 <b>Gemini 분석 요청</b> 버튼을 누르면
-        현재 바이어스 상태에 대한 물리적 해설이 이 자리에 표시됩니다.</div>
-      </div>
+    <div class='stat-card' style='margin-bottom:24px;'>
+        <div class='stat-title'>Operating Region</div>
+        <div style='font-size:1.6rem;font-weight:800;color:{region_color};line-height:1.2;margin-bottom:4px;'>{region_kr}</div>
+        <div style='font-size:0.9rem;color:{region_color};margin-bottom:18px;font-weight:600;'>({region})</div>
+        <div style='display:grid;grid-template-columns:1fr 1fr;gap:16px;'>
+            <div><div class='stat-label'>인가전압 |V_DS|</div><div class='stat-value'>{vds:.2f} V</div></div>
+            <div><div class='stat-label'>드레인전류 |I_D|</div><div class='stat-value'>{id_mA:.2f} mA</div></div>
+            <div><div class='stat-label'>게이트전압 |V_GS|</div><div class='stat-value'>{vgs:.2f} V</div></div>
+            <div><div class='stat-label'>포화전압 V_DSAT</div><div class='stat-value'>{vds_sat:.2f} V</div></div>
+        </div>
+        <div style='margin-top:20px;padding:12px 14px;background:#f8fafc;
+                    border-left:4px solid {region_color};border-radius:6px;
+                    font-size:0.78rem;font-weight:700;color:#334155;line-height:1.45;'>
+            <span style='color:{region_color}'>{region_desc}</span>
+        </div>
     </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='section-header'>📐 MOSFET 구조</div>", unsafe_allow_html=True)
+    fig_struct, ax = plt.subplots(figsize=(5, 4.5))
+    ax.set_xlim(0, 10); ax.set_ylim(0, 8.5); ax.axis("off")
+    fig_struct.patch.set_facecolor('white')
+    sub_color  = "#c8dff0" if device=="NMOS" else "#fce4d6"
+    sub_edge   = "#5a8abf" if device=="NMOS" else "#e67e22"
+    sub_text   = "p-Substrate" if device=="NMOS" else "n-Substrate"
+    sub_tc     = "#2c5f8a" if device=="NMOS" else "#a04000"
+    well_text  = "n+" if device=="NMOS" else "p+"
+    well_color = "#4caf7d" if device=="NMOS" else "#9b59b6"
+    well_edge  = "#2e7d52" if device=="NMOS" else "#8e44ad"
+    carrier_color = "#e65100" if device=="NMOS" else "#8e44ad"
+    ch_color   = "#66bb6a" if device=="NMOS" else "#d2b4de"
+    ch_edge    = "#388e3c" if device=="NMOS" else "#af7ac5"
+    ax.add_patch(patches.FancyBboxPatch((0.3,0.3),9.4,4.8,boxstyle="round,pad=0.1",fc=sub_color,ec=sub_edge,lw=1.5))
+    ax.text(5,1.0,sub_text,ha="center",va="center",fontsize=10,color=sub_tc,fontstyle='italic')
+    for (x0,label) in [(0.5,"S"),(7.2,"D")]:
+        ax.add_patch(patches.FancyBboxPatch((x0,3.0),2.3,2.1,boxstyle="round,pad=0.05",fc=well_color,ec=well_edge,lw=1.5))
+        cx=x0+1.15
+        ax.text(cx,4.1,label,ha="center",va="center",fontsize=18,fontweight="bold",color="white")
+        ax.text(cx,3.35,well_text,ha="center",va="center",fontsize=10,color="#ffffff")
+    ax.add_patch(patches.Rectangle((2.8,5.1),4.4,0.4,fc="#e8e8e8",ec="#aaa",lw=1.0))
+    ax.text(7.35,5.3,"SiO2",ha="left",va="center",fontsize=8,color="#9400D3")
+    ax.add_patch(patches.FancyBboxPatch((2.8,5.5),4.4,0.75,boxstyle="round,pad=0.05",fc="#37474f",ec="#1a1a2e",lw=1.5))
+    ax.text(5,5.88,"Gate (G)",ha="center",va="center",fontsize=10,fontweight="bold",color="white")
+    GATE_X_START,GATE_X_END=2.8,7.2; GATE_LEN=GATE_X_END-GATE_X_START
+    SIO2_BOTTOM,CH_THICK=5.1,0.5
+    if region=="Saturation":
+        ratio=float(np.clip(vds_sat/max(abs(vds),0.01),0.15,0.85))
+        po_x=(GATE_X_START+GATE_LEN*ratio if device=="NMOS" else GATE_X_END-GATE_LEN*ratio)
+        if device=="NMOS":
+            tri_pts=np.array([[GATE_X_START,SIO2_BOTTOM],[po_x,SIO2_BOTTOM],[GATE_X_START,SIO2_BOTTOM-CH_THICK]])
+            dep_rect=patches.Rectangle((po_x,SIO2_BOTTOM-CH_THICK),GATE_X_END-po_x,CH_THICK,fc="#dce8f5",ec="#5a8abf",linestyle='--',alpha=0.6)
+            arr_start,arr_end=GATE_X_START+0.2,po_x-0.15
+        else:
+            tri_pts=np.array([[GATE_X_END,SIO2_BOTTOM],[po_x,SIO2_BOTTOM],[GATE_X_END,SIO2_BOTTOM-CH_THICK]])
+            dep_rect=patches.Rectangle((GATE_X_START,SIO2_BOTTOM-CH_THICK),po_x-GATE_X_START,CH_THICK,fc="#fbeee6",ec="#e67e22",linestyle='--',alpha=0.6)
+            arr_start,arr_end=GATE_X_END-0.2,po_x+0.15
+        ax.add_patch(MplPolygon(tri_pts,closed=True,fc=ch_color,ec=ch_edge,lw=1.2,alpha=0.9,zorder=4))
+        ax.add_patch(dep_rect)
+        ax.plot(po_x,SIO2_BOTTOM,'ro',ms=7,zorder=10)
+        ax.text(po_x,SIO2_BOTTOM-0.8,"Pinch-off",ha="center",fontsize=7,color="red",fontweight="bold")
+        ax.annotate("",xy=(arr_end,SIO2_BOTTOM-CH_THICK*0.4),xytext=(arr_start,SIO2_BOTTOM-CH_THICK*0.4),
+                    arrowprops=dict(arrowstyle='->',color=carrier_color,lw=1.4),zorder=6)
+    elif region=="Linear":
+        drain_thin=CH_THICK*(1.0-0.4*(vds/(vds_sat if vds_sat>0 else 1)))
+        trap_pts=np.array([[GATE_X_START,SIO2_BOTTOM],[GATE_X_END,SIO2_BOTTOM],[GATE_X_END,SIO2_BOTTOM-drain_thin],[GATE_X_START,SIO2_BOTTOM-CH_THICK]])
+        ax.add_patch(MplPolygon(trap_pts,closed=True,fc=ch_color,ec=ch_edge,lw=1.2,alpha=0.85,zorder=4))
+    else:
+        ax.text(5,SIO2_BOTTOM-0.35,"No Channel (Cutoff)",ha="center",va="top",fontsize=8,color="#dc3545",
+                bbox=dict(boxstyle='round,pad=0.3',fc='#fff0f0',ec='#dc3545',alpha=0.85))
+    ax.text(5,7.8,f"Applied: V_GS={vgs:.1f}V | V_DS={vds:.1f}V",ha="center",fontsize=8,color="#444")
+    st.pyplot(fig_struct)
+    plt.close(fig_struct)
+
+with col_mid:
+    st.markdown("<div class='section-header'>📈 특성 곡선 & 밴드 다이어그램</div>", unsafe_allow_html=True)
+
+    # ── I-V 특성 곡선 ──────────────────────────────────────
+    v_ax = np.linspace(0, 5, 300)
+    i_ax = [calc_mosfet(device, vgs, vd, vth)[1] for vd in v_ax]
+    vgs_for_boundary = np.linspace(vth+0.01, 5.0, 300)
+    sat_vds_pts, sat_id_pts = [], []
+    for vg_ in vgs_for_boundary:
+        vds_b = vg_ - vth
+        id_b  = round(0.5*(vg_-vth)**2, 2)
+        if 0 <= vds_b <= 5.0:
+            sat_vds_pts.append(vds_b); sat_id_pts.append(id_b)
+    fig_iv = go.Figure()
+    fig_iv.add_trace(go.Scatter(x=sat_vds_pts,y=sat_id_pts,mode='lines',line=dict(color='#e74c3c',dash='dash',width=1.8),name="Saturation Boundary (V_DS = V_GS − V_TH)"))
+    fig_iv.add_trace(go.Scatter(x=list(v_ax),y=i_ax,mode='lines',line=dict(color='#1a5276',width=2.5),name=f"V_GS = {vgs:.1f} V"))
+    fig_iv.add_trace(go.Scatter(x=[vds],y=[id_mA],mode='markers',marker=dict(color='#e74c3c',size=11,line=dict(color='white',width=1.5)),name="Operating Point"))
+    fig_iv.update_layout(
+        height=320,margin=dict(l=10,r=10,t=40,b=10),
+        xaxis_title="|V_DS| (V)" if device=="PMOS" else "V_DS (V)",
+        yaxis_title="I_D (mA)",
+        xaxis=dict(range=[0,5]),yaxis=dict(rangemode='tozero'),
+        legend=dict(yanchor="top",y=0.99,xanchor="left",x=0.01,bgcolor="rgba(255,255,255,0.85)",bordercolor="rgba(128,128,128,0.3)",borderwidth=1,font=dict(size=9)),
+        plot_bgcolor='white',
+        title=dict(text="I-V Characteristic Curve",font=dict(size=12,color="#64748b"),x=0.5,y=0.95,xanchor='center'))
+    fig_iv.update_xaxes(showgrid=True,gridcolor='#f1f5f9')
+    fig_iv.update_yaxes(showgrid=True,gridcolor='#f1f5f9')
+    st.plotly_chart(fig_iv,use_container_width=True,theme="streamlit")
+
+    # ════════════════════════════════════════════════════════
+    #  에너지 밴드 다이어그램 (수정 버전)
+    #
+    #  핵심 수정 사항:
+    #  1) E_F 위치:
+    #     NMOS (p-substrate): E_F = E_v + ~0.15eV (E_v 가까이)
+    #     PMOS (n-substrate): E_F = E_c - ~0.15eV (E_c 가까이)
+    #
+    #  2) 밴드 휨 방향:
+    #     NMOS: V_DS > 0 → 드레인 쪽 전자 에너지 낮아짐 → E_c 하강 (drop < 0)
+    #     PMOS: V_DS > 0 (슬라이더 절댓값) → 실제 V_DS < 0
+    #           드레인 쪽 정공 에너지 낮아짐 → E_c 상승 (drop > 0)
+    #
+    #  3) 차단 모드: V_GS < V_TH → 게이트 전압이 낮아서
+    #     채널 영역 E_c가 위로 굽어야 함 (NMOS 기준)
+    #     → gate_bend: V_GS 증가할수록 채널 E_c 낮아짐
+    #
+    #  4) 소스-드레인 E_F 분리: qV_DS 만큼 정확히 분리
+    #     ef_drn = ef_src - abs_vds (NMOS)
+    #     ef_drn = ef_src + abs_vds (PMOS: 반대 방향)
+    # ════════════════════════════════════════════════════════
+
+    Eg       = 1.12
+    abs_vgs  = abs(vgs)
+    abs_vds  = abs(vds)
+    abs_vth  = abs(vth)
+    vgs_eff_plot = max(abs_vgs - abs_vth, 0.0)
+
+    # ── 소스 기준 E_c 레벨 ────────────────────────────────
+    E0 = 2.0   # 소스 영역 E_c (기준점)
+
+    # ── E_F 위치 수정 ─────────────────────────────────────
+    # NMOS: p-substrate → E_F는 E_v 가까이 (E_v + 0.12 eV)
+    # PMOS: n-substrate → E_F는 E_c 가까이 (E_c - 0.12 eV)
+    if device == "NMOS":
+        ef_src_val = (E0 - Eg) + 0.12   # E_v + 0.12
+    else:
+        ef_src_val = E0 - 0.12           # E_c - 0.12
+
+    # ── V_DS에 의한 드레인 쪽 밴드 강하량 ────────────────
+    # NMOS: 드레인 전위 높아짐 → 전자 에너지 낮아짐 → E_c 하강 (음수)
+    # PMOS: 실제 V_DS < 0 → 드레인 전위 낮아짐 → 정공 에너지 낮아짐 → E_c 상승 (양수)
+    max_drop = 2.0   # 최대 표시 강하량 클램프
+    if device == "NMOS":
+        band_drop = -min(abs_vds * 0.45, max_drop)   # 음수: E_c 하강
+    else:
+        band_drop = +min(abs_vds * 0.45, max_drop)   # 양수: E_c 상승
+
+    # ── 게이트 전압에 의한 채널 밴드 굽힘 ────────────────
+    # NMOS: V_GS 증가 → 채널 E_c 아래로 당겨짐(반전층 형성)
+    #        V_GS < V_TH → 채널 E_c 위로 굽음 (공핍층)
+    #        채널 중앙에서의 추가 굽힘 = -(V_GS - V_TH) * 0.3 (NMOS)
+    # PMOS: 반대 방향
+    if device == "NMOS":
+        gate_bend = -vgs_eff_plot * 0.3   # 반전 형성 시 아래로
+        if region == "Cutoff":
+            gate_bend = abs_vth * 0.25    # 차단 시 위로 굽음 (공핍)
+    else:
+        gate_bend = +vgs_eff_plot * 0.3
+        if region == "Cutoff":
+            gate_bend = -abs_vth * 0.25
+
+    # ── x 좌표 ────────────────────────────────────────────
+    x_src = np.linspace(0.0, 1.0, 50)
+    x_ch  = np.linspace(1.0, 2.0, 80)
+    x_drn = np.linspace(2.0, 3.0, 50)
+    t_ch  = x_ch - 1.0   # 0 → 1
+
+    # ── 채널 영역 E_c 프로파일 ───────────────────────────
+    # V_DS 강하의 공간적 분포: 모드에 따라 집중 위치 다름
+    #   Linear:     균일한 기울기 (n=1)
+    #   Saturation: 드레인 근처에 집중 (n↑)
+    #   Cutoff:     드레인 접합에 집중 (n=3)
+    if region == "Linear" and vgs_eff_plot > 0:
+        n_exp = 1.0
+    elif region == "Saturation" and vgs_eff_plot > 0:
+        ratio = float(np.clip(vds_sat / max(abs_vds, 0.01), 0.15, 0.85))
+        n_exp = 1.0 + (1.0 - ratio) * 3.5
+    else:
+        n_exp = 3.0
+
+    ec_src = np.full_like(x_src, E0)
+    # 채널: gate_bend (게이트에 의한 균일 굽힘) + band_drop (V_DS에 의한 드레인 쪽 강하)
+    ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
+    ec_drn = np.full_like(x_drn, E0 + band_drop)
+
+    ev_src = ec_src - Eg
+    ev_ch  = ec_ch  - Eg
+    ev_drn = ec_drn - Eg
+
+    x_all  = np.concatenate([x_src, x_ch,  x_drn])
+    ec_all = np.concatenate([ec_src, ec_ch, ec_drn])
+    ev_all = np.concatenate([ev_src, ev_ch, ev_drn])
+
+    # ── E_F 소스/드레인 분리: 정확히 qV_DS 만큼 ─────────
+    # NMOS: 드레인 E_F = 소스 E_F - V_DS (전자 전기화학 퍼텐셜)
+    # PMOS: 드레인 E_F = 소스 E_F + V_DS
+    if device == "NMOS":
+        ef_drn_val = ef_src_val - abs_vds * 0.45   # band_drop과 동일 스케일
+    else:
+        ef_drn_val = ef_src_val + abs_vds * 0.45
+
+    ch_mid_ec = float(ec_ch[len(ec_ch) // 2])
+
+    fig_band = go.Figure()
+
+    fig_band.add_trace(go.Scatter(x=list(x_all), y=list(ec_all), mode='lines',
+                                  line=dict(color='#e74c3c', width=2.5), name="E<sub>c</sub>"))
+    fig_band.add_trace(go.Scatter(x=list(x_all), y=list(ev_all), mode='lines',
+                                  line=dict(color='#2980b9', width=2.5), name="E<sub>v</sub>"))
+
+    # 소스 E_F
+    fig_band.add_trace(go.Scatter(x=[0.0, 1.0], y=[ef_src_val, ef_src_val], mode='lines',
+                                  line=dict(color='purple', width=1.8, dash='dot'),
+                                  name="E<sub>F</sub> (Source)"))
+    # 드레인 E_F (V_DS > 0 이면 소스와 분리됨)
+    fig_band.add_trace(go.Scatter(x=[2.0, 3.0], y=[ef_drn_val, ef_drn_val], mode='lines',
+                                  line=dict(color='purple', width=1.8, dash='dot'),
+                                  name="E<sub>F</sub> (Drain)", showlegend=True))
+
+    # Eg 화살표
+    fig_band.add_annotation(x=0.15, y=ec_src[0], ay=ev_src[0],
+                             axref='x', ayref='y', xref='x', yref='y',
+                             arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor='gray', ax=0.15)
+    fig_band.add_annotation(x=0.15, y=ev_src[0], ay=ec_src[0],
+                             axref='x', ayref='y', xref='x', yref='y',
+                             arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor='gray', ax=0.15)
+    fig_band.add_annotation(x=0.22, y=(ec_src[0]+ev_src[0])/2,
+                             text=f"Eg={Eg}eV", showarrow=False,
+                             font=dict(size=9, color='gray'), xanchor='left')
+
+    # 동작 영역 레이블
+    if region == "Saturation" and vgs_eff_plot > 0:
+        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
+                                 text="Inversion Layer<br>(Saturation)", showarrow=False,
+                                 font=dict(size=9, color='#27ae60'),
+                                 bgcolor='#eafaf1', bordercolor='#27ae60', borderwidth=1)
+        # 핀치오프 위치
+        po_t = 0.85
+        fig_band.add_annotation(x=1.0+po_t, y=E0+band_drop*(po_t**n_exp),
+                                 text="Pinch-off", showarrow=True,
+                                 arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor="#e74c3c",
+                                 ax=16, ay=(-22 if device=="NMOS" else 22),
+                                 font=dict(size=8, color="#e74c3c"))
+    elif region == "Linear" and vgs_eff_plot > 0:
+        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
+                                 text="Channel Formed<br>(Linear)", showarrow=False,
+                                 font=dict(size=9, color='#f39c12'),
+                                 bgcolor='#fef9e7', bordercolor='#f39c12', borderwidth=1)
+    elif region == "Cutoff":
+        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
+                                 text="No Channel<br>(Cutoff)", showarrow=False,
+                                 font=dict(size=9, color='#ef4444'),
+                                 bgcolor='#fff0f0', bordercolor='#ef4444', borderwidth=1)
+
+    fig_band.update_layout(
+        height=320, margin=dict(l=10, r=10, t=40, b=10),
+        xaxis=dict(tickvals=[0.5,1.5,2.5], ticktext=["Source","Channel","Drain"],
+                   tickfont=dict(size=10), showgrid=True, gridcolor='#f1f5f9'),
+        yaxis=dict(title="Energy (eV)", title_font=dict(size=10),
+                   showgrid=True, gridcolor='#f1f5f9'),
+        legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99,
+                    bgcolor="rgba(255,255,255,0.85)",
+                    bordercolor="rgba(128,128,128,0.3)", borderwidth=1, font=dict(size=9)),
+        plot_bgcolor='white',
+        title=dict(text=f"Energy Band Diagram ({device})",
+                   font=dict(size=12, color="#64748b"), x=0.5, y=0.95, xanchor='center'))
+    st.plotly_chart(fig_band, use_container_width=True, theme="streamlit")
+
+with col_right:
+    st.markdown("<div class='section-header'>🤖 AI 해설</div>", unsafe_allow_html=True)
+    if "gemini_response" not in st.session_state:
+        st.session_state.gemini_response = ""
+    if ask_btn:
+        question = (user_question.strip() if user_question.strip()
+                    else f"현재 {device} MOSFET 조건에 대해 물리적으로 쉽게 설명해줘.")
+        full_prompt = f"""
+{device} MOSFET 조건 요약:
+- V_GS = {vgs:.1f}V, V_DS = {vds:.1f}V, V_TH = {vth:.1f}V
+- 현재 동작 영역: {region}
+- 드레인 전류: {id_mA:.2f} mA
+- 포화 전압: {vds_sat:.2f} V
+사용자 질문: {question}
+위의 소자 상태 데이터를 기반으로 전하 캐리어 이동 현상과 핀치오프 메커니즘을
+전공자 관점에서 비유를 섞어 아주 쉽고 흥미롭게 한국어로 해설해줘. 4문장 내외로 마무리해줘.
+"""
+        with st.spinner("Gemini analyzing..."):
+            st.session_state.gemini_response = call_gemini(full_prompt)
+    if st.session_state.gemini_response:
+        st.markdown(f"""
+        <div style='background:#ffffff;padding:16px;border-radius:10px;
+                    border:1px solid #e2e8f0;font-size:0.85rem;color:#1e293b;
+                    line-height:1.6;white-space:pre-wrap;min-height:140px;
+                    box-shadow:0px 4px 6px rgba(0,0,0,0.02);'>{st.session_state.gemini_response}</div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style='background:#f0f9ff;padding:16px;border-radius:10px;
+                    border:1px solid #bae6fd;font-size:0.88rem;font-weight:600;
+                    color:#0369a1;display:flex;align-items:flex-start;gap:8px;'>
+            <span>👉</span>
+            <span>왼쪽 패널에서 설정을 마치고 [AI 실시간 해설 보기] 버튼을 눌러보세요.</span>
+        </div>""", unsafe_allow_html=True)
