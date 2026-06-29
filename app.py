@@ -168,8 +168,8 @@ with row1_right:
 <div style="display:flex;flex-direction:column;gap:8px;">
   {bjt_svg}
   <canvas id="bjtCvs" width="560" height="160"
-    style="background:#1e1e2e;border-radius:8px;display:block;width:100%;
-           box-shadow:0 2px 8px rgba(0,0,0,0.2);"></canvas>
+    style="background:#ffffff;border-radius:8px;display:block;width:100%;border:1px solid #eaeaea;
+           box-shadow:0 2px 8px rgba(0,0,0,0.05);"></canvas>
   <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
     <span style="color:#00E6FF;font-weight:700;">● 전자 (Electron)</span>&nbsp;&nbsp;
     <span style="color:#FF7043;font-weight:700;">● 정공 (Hole)</span>
@@ -220,13 +220,13 @@ with row1_right:
     ctx.clearRect(0,0,W,H);
 
     // 배경
-    ctx.fillStyle='rgba(30,100,200,0.08)';  ctx.fillRect(0,0,XBE,H);
-    ctx.fillStyle='rgba(200,60,60,0.08)';   ctx.fillRect(XBE,0,XBC-XBE,H);
-    ctx.fillStyle='rgba(30,160,80,0.08)';   ctx.fillRect(XBC,0,W-XBC,H);
+    ctx.fillStyle='rgba(173,216,230,0.35)';  ctx.fillRect(0,0,XBE,H);
+    ctx.fillStyle='rgba(255,182,193,0.35)';   ctx.fillRect(XBE,0,XBC-XBE,H);
+    ctx.fillStyle='rgba(144,238,144,0.35)';   ctx.fillRect(XBC,0,W-XBC,H);
 
     // 경계선
     [XBE,XBC].forEach(x=>{{
-      ctx.strokeStyle='rgba(200,200,200,0.35)';ctx.lineWidth=1;
+      ctx.strokeStyle='rgba(100,100,100,0.4)';ctx.lineWidth=1;
       ctx.setLineDash([4,4]);
       ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
       ctx.setLineDash([]);
@@ -234,9 +234,9 @@ with row1_right:
 
     // 영역 라벨
     ctx.font='bold 10px monospace';
-    ctx.fillStyle='#7ab4f8'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,15);
-    ctx.fillStyle='#f28b82'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,15);
-    ctx.fillStyle='#81c995'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,15);
+    ctx.fillStyle='#1565C0'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,15);
+    ctx.fillStyle='#B71C1C'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,15);
+    ctx.fillStyle='#1B5E20'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,15);
 
     // 재결합 플래시 렌더링
     recombEvents = recombEvents.filter(ev => ev.t > 0);
@@ -255,7 +255,7 @@ with row1_right:
     pts.forEach(p => {{
       // 주 캐리어 색 (NPN: 전자=파랑, 정공=빨강 / PNP 동일)
       const col = p.t==='e' ? '#00E6FF' : '#FF7043';
-      ctx.shadowBlur=6; ctx.shadowColor=col; ctx.fillStyle=col;
+      ctx.shadowBlur=4; ctx.shadowColor=col; ctx.fillStyle=col;
       ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
       ctx.shadowBlur=0;
 
