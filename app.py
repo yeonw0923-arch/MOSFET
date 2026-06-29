@@ -52,17 +52,31 @@ user_question = st.sidebar.text_area(
     height=100)
 
 # ─────────────────────────────────────────────
-#  동작 모드 판정
+#  회로 파라미터
 # ─────────────────────────────────────────────
-VT = 0.65   # PN 접합 턴온 전압 (V_BE, V_BC 동일 기준)
-be_fwd = V_be >  VT
-bc_fwd = V_bc >  VT
-
-# 회로 파라미터 (7주차 예제 기준)
 V_CC  = 5.0
-R_C   = 800.0   # Ω
-beta  = 150     # 2N3904 typ.
-V_AF  = 100.0   # Early voltage
+R_C   = 800.0
+beta  = 150
+V_AF  = 100.0
+early_k = 1.0 / V_AF
+
+# ─────────────────────────────────────────────
+#  동작 모드 판정
+#
+#  기준: PN 접합 턴온 전압
+#   - B-E 접합: V_BE > 0.5V → 의미있는 전류 흐름 시작
+#               V_BE > 0.65V → 완전 턴온 (순방향)
+#               V_BE < 0.3V  → 실질적 차단
+#   - B-C 접합: 동일 기준 적용
+#
+#  슬라이더 범위(-1.0 ~ 1.5V) 전체에서 직관적으로 동작하도록
+#  히스테리시스 없이 연속적으로 판정
+# ─────────────────────────────────────────────
+VT_ON  = 0.5    # 턴온 시작 (의미있는 전류)
+VT_OFF = 0.3    # 차단 기준
+
+be_fwd = V_be > VT_ON   # B-E 순방향 도통
+bc_fwd = V_bc > VT_ON   # B-C 순방향 도통
 
 if be_fwd and not bc_fwd:
     mode = "순방향 활성 모드 (Forward Active)"
@@ -72,35 +86,41 @@ else:
     mode = "차단 모드 (Cut-off)"
 
 # ─────────────────────────────────────────────
-#  Q점 계산 (슬라이더와 연동)
+#  Q점 계산
 #
-#  V_BE 슬라이더 → I_B 계산 (Shockley 다이오드 방정식 기반)
-#  I_C = β * I_B  (순방향 활성),  Early effect 포함
-#  V_CE = V_CC - I_C * R_C
+#  핵심 아이디어:
+#   V_BE 슬라이더 값 → I_B 선형 근사 (실용적)
+#   실제 BJT에서 V_BE=0.6V 근처에서 I_B가 급격히 증가하므로
+#   Shockley exp 대신 선형 근사 사용:
+#     V_BE < VT_ON  → I_B = 0
+#     V_BE >= VT_ON → I_B = (V_BE - VT_ON) / R_B_eff
+#                     (R_B_eff: 등가 베이스 저항, 슬라이더 범위에 맞게 조정)
+#
+#   I_C = β * I_B  → 부하선과 교점 = Q점
+#   V_CE = V_CC - I_C * R_C
 # ─────────────────────────────────────────────
-V_T   = 0.02585   # 열전압 (실온 300K)
-I_S   = 1e-14     # 역포화 전류
 
-# B-E 전류 (Shockley): 베이스 전류 근사
-# I_B ≈ I_S / beta * (exp(V_BE/V_T) - 1)
-I_B_A = (I_S / beta) * (np.exp(np.clip(V_be, -1, 1.2) / V_T) - 1)
-I_B_A = max(0.0, I_B_A)
+# 등가 베이스 저항: V_BE가 0.5→1.5V 변할 때 I_B가 0→~33μA 변하도록 설정
+# I_B_max ≈ (1.5 - 0.5) / 30kΩ = 33μA → I_C_max = 150 * 33μA = 5mA (부하선 범위 안)
+R_B_eff = 30000.0   # 30kΩ
+
+if be_fwd:
+    I_B_A = (V_be - VT_ON) / R_B_eff
+    I_B_A = max(0.0, I_B_A)
+else:
+    I_B_A = 0.0
 
 if mode == "순방향 활성 모드 (Forward Active)":
-    # I_C = β * I_B (Early effect 포함은 V_CE 확정 후)
-    I_C_ideal = beta * I_B_A          # A
-    V_CE_calc = V_CC - I_C_ideal * R_C
-    V_CE_calc = max(VT, V_CE_calc)    # 포화점 아래로 내려가지 않도록
-    I_C_early = I_C_ideal * (1 + V_CE_calc / V_AF)
-    # 부하선 제약: I_C <= (V_CC - V_CE) / R_C
-    I_C_load  = (V_CC - V_CE_calc) / R_C
-    q_ic_A    = min(I_C_early, I_C_load)
+    # I_C = β * I_B, 부하선 제약 적용
+    I_C_ideal = beta * I_B_A
+    I_C_max   = (V_CC - 0.2) / R_C   # 포화 직전 최대값
+    q_ic_A    = min(I_C_ideal, I_C_max)
     q_ic_A    = max(0.0, q_ic_A)
     q_vce     = V_CC - q_ic_A * R_C
     q_vce     = max(0.2, q_vce)
 
 elif mode == "포화 모드 (Saturation)":
-    q_vce  = 0.2   # V_CE,sat
+    q_vce  = 0.2
     q_ic_A = (V_CC - q_vce) / R_C
 
 else:  # Cut-off
@@ -435,7 +455,6 @@ with col1:
     v_max    = V_CC + 0.8
     v_arr    = np.linspace(0, v_max, 300)
     ib_list  = [10, 20, 30, 40, 50]   # μA
-    early_k  = 1.0 / V_AF
 
     base_color = (255, 127, 14) if bjt_type == "NPN" else (148, 103, 189)
 
