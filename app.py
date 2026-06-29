@@ -342,14 +342,18 @@ with col_mid:
     # ── E_c 프로파일 구성 ────────────────────────────────
     ec_src = np.full_like(x_src, E0)
 
-    # 채널: sin 굽힘(게이트) + 기울기(V_DS)
-    # gate_bend * sin: 채널 중앙에서 최대 굽힘, 소스/드레인 경계에서 0
-    # band_drop * t^n: V_DS에 의한 드레인 쪽 강하
-    ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
-
-    # (차단 모드 클램프 제거: gate_bend=0으로 처리)
-
-    ec_drn = np.full_like(x_drn, E0 + band_drop)
+    if region == "Cutoff":
+        # 차단: 채널에 전류 없음 → 채널 E_c 수평 유지
+        # V_DS 강하는 드레인 접합(채널-드레인 경계)에만 집중
+        ec_ch  = np.full_like(x_ch, E0)   # 채널 수평
+        ec_drn_start = E0
+        # 드레인 영역 내에서 강하 (드레인 n+ 시작 부분에서 급강하)
+        t_drn = np.linspace(0, 1, len(x_drn))
+        ec_drn = ec_drn_start + band_drop * (t_drn ** 2)
+    else:
+        # 반전층: sin 굽힘(게이트) + 기울기(V_DS)
+        ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
+        ec_drn = np.full_like(x_drn, E0 + band_drop)
 
     ev_src = ec_src - Eg
     ev_ch  = ec_ch  - Eg
