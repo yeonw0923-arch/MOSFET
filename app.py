@@ -341,19 +341,19 @@ with col_mid:
     ec_src = np.full_like(x_src, E0)
 
     if region == "Cutoff":
-        # 차단: 채널 수평 → 드레인 접합부에서 급강하 → 드레인 내부 수평
+        # 차단: 채널 수평 → 드레인 접합에서 급강하 → 드레인 수평
         ec_ch  = np.full_like(x_ch, E0)
         t_drn  = np.linspace(0, 1, len(x_drn))
         ec_drn = E0 + band_drop * (1 - np.exp(-t_drn * 18))
     else:
         # 반전층 (Linear/Saturation):
-        #   채널 E_c = 소스에서 드레인 방향으로 단조 감소
-        #   gate_bend * t: 게이트에 의한 채널 하강 (소스→드레인, 선형)
-        #   band_drop * t^n: V_DS에 의한 추가 강하 (모드별 집중 위치)
-        #   sin 대신 선형 t 사용 → 채널 끝에서 다시 올라가지 않음
-        ec_ch  = E0 + gate_bend * t_ch + band_drop * (t_ch ** n_exp)
-        # 드레인 E_c = 채널 끝 레벨에서 수평
-        ec_drn = np.full_like(x_drn, E0 + gate_bend + band_drop)
+        #   채널 E_c를 sigmoid로 소스레벨→드레인레벨 부드럽게 전이
+        #   Linear:     k=4 (완만한 기울기)
+        #   Saturation: k=8 (드레인 근처 급강하, 핀치오프 표현)
+        k_sig = 4.0 if region == "Linear" else 8.0
+        sig   = 1.0 / (1.0 + np.exp(-k_sig * (t_ch - 0.5)))
+        ec_ch  = E0 + band_drop * sig
+        ec_drn = np.full_like(x_drn, E0 + band_drop)
 
     ev_src = ec_src - Eg
     ev_ch  = ec_ch  - Eg
