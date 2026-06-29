@@ -171,52 +171,82 @@ with col1:
     # ══════════════════════════════════════════
 
     fig_band = go.Figure()
-    E_g    = 1.12   # 실리콘 밴드갭 (eV)
-    phi_bi = 0.7    # 내장 전위 (eV)
-
-    # ── 이미터 E_c 기준 레벨 ──────────────────
-    E_c_E = 2.0
-
-    # ── BE 접합 전위장벽 변화 ─────────────────
-    # 순방향(V_be>0): 장벽 낮아짐 → 베이스 E_c 하강
-    # 역방향(V_be<0): 장벽 높아짐 → 베이스 E_c 상승
-    dE_BE = np.clip(V_be, -1.0, phi_bi)   # 최대 phi_bi까지만 낮아짐
-    E_c_B = E_c_E - dE_BE * 0.9           # 베이스 E_c (P형이므로 이미터보다 낮음)
-
-    # ── BC 접합 전위장벽 변화 ─────────────────
-    # 역방향(V_bc<0): 컬렉터 E_c 상승 (전위장벽 증가)
-    # 순방향(V_bc>0): 컬렉터 E_c 하강
-    dE_BC = np.clip(V_bc, -3.0, phi_bi)
-    E_c_C = E_c_B - dE_BC * 0.85          # 컬렉터 E_c
+    E_g    = 1.12
+    phi_bi = 0.7    # 열평형 내장 전위 (eV)
 
     # ── x 좌표 ────────────────────────────────
-    x_e  = np.linspace(0,   2.8, 50)
-    x_b  = np.linspace(2.8, 5.2, 40)
-    x_c  = np.linspace(5.2, 8.0, 50)
+    x_e = np.linspace(0,   2.8, 50)
+    x_b = np.linspace(2.8, 5.2, 40)
+    x_c = np.linspace(5.2, 8.0, 50)
 
-    # ── E_c 프로파일 구성 ─────────────────────
-    # 이미터: 수평
+    # ══════════════════════════════════════════
+    #  E_c 프로파일: 교안 그림 2-6/2-8/2-9 기준
+    #
+    #  핵심 원칙 (NPN 기준):
+    #   이미터(N+) E_c = 기준값 E_c_E (수평)
+    #   베이스(P)  E_c = E_c_E + offset_B  (P형이라 이미터보다 낮음 → offset_B < 0)
+    #   컬렉터(N)  E_c = 바이어스에 따라 결정
+    #
+    #  순방향 활성 (V_BE>0, V_BC<0):
+    #   BE: 순방향 → 왼쪽 장벽 낮아짐 → 이미터→베이스 전이가 완만
+    #   BC: 역방향 → 오른쪽 장벽 높아짐 → 컬렉터 E_c 올라감
+    #   결과: 이미터 수평 → 베이스에서 살짝 내려감 → 컬렉터에서 다시 올라감
+    #         (오른쪽이 높아지는 모양)
+    #
+    #  포화 (V_BE>0, V_BC>0):
+    #   BE: 순방향 → 왼쪽 장벽 낮아짐
+    #   BC: 순방향 → 오른쪽 장벽도 낮아짐
+    #   결과: 이미터≈컬렉터 높이, 베이스만 움푹 들어간 모양
+    #
+    #  차단 (V_BE<0, V_BC<0):
+    #   BE: 역방향 → 왼쪽 장벽 높아짐
+    #   BC: 역방향 → 오른쪽 장벽 높아짐
+    #   결과: 이미터/컬렉터 수평, 베이스 가운데가 볼록 올라가는 모양
+    # ══════════════════════════════════════════
+
+    E_c_E = 2.0   # 이미터 E_c 기준 (고정)
+
+    # BE 장벽 높이: 열평형 phi_bi 기준, 바이어스로 증감
+    #   순방향(V_be>0): phi_bi - V_be → 낮아짐
+    #   역방향(V_be<0): phi_bi - V_be → 높아짐 (V_be 음수라 더해짐)
+    be_barrier = phi_bi - np.clip(V_be, -1.5, phi_bi)
+    be_barrier = max(0.05, be_barrier)   # 최소값 보장
+
+    # BC 장벽 높이: 역방향(V_bc<0)이면 높아짐
+    bc_barrier = phi_bi - np.clip(V_bc, -3.0, phi_bi)
+    bc_barrier = max(0.05, bc_barrier)
+
+    # 베이스 E_c: P형이므로 이미터보다 낮음 (고정 offset -0.3 eV)
+    E_c_B = E_c_E - 0.3
+
+    # 컬렉터 E_c: BC 역방향이면 올라가고, 순방향이면 내려감
+    # 역방향(V_bc<0): E_c_C > E_c_B (컬렉터가 베이스보다 높음)
+    # 순방향(V_bc>0): E_c_C < E_c_B
+    E_c_C = E_c_B + (bc_barrier - phi_bi) * 1.2
+
+    # ── 이미터: 수평 ──────────────────────────
     ec_e = np.full_like(x_e, E_c_E)
 
-    # BE 접합 전이: sigmoid 함수로 부드럽게
-    t_be = np.linspace(-4, 4, len(x_b))
-    sig_be = 1 / (1 + np.exp(-t_be))
-    ec_b = E_c_E + (E_c_B - E_c_E) * sig_be   # 이미터→베이스 전이
+    # ── BE 접합 전이 (이미터→베이스) ─────────
+    # 장벽 높이 be_barrier만큼 peak가 생기고 베이스 레벨로 내려옴
+    # sigmoid로 전이, peak는 접합 경계(x=2.8)에서 발생
+    t_be  = np.linspace(-5, 5, len(x_b))
+    # 왼쪽 절반: 이미터→peak (장벽 올라감)
+    # 오른쪽 절반: peak→베이스 (장벽 내려옴)
+    half  = len(x_b) // 2
+    # BE 장벽 peak = E_c_E + be_barrier
+    peak_BE = E_c_E + be_barrier
+    ec_b_left  = np.linspace(E_c_E,   peak_BE, half)
+    ec_b_right = np.linspace(peak_BE, E_c_B,   len(x_b) - half)
+    ec_b_combined = np.concatenate([ec_b_left, ec_b_right])
 
-    # 베이스 내부는 E_c_B로 수평 유지 (얇은 베이스 → 거의 수평)
-    ec_b_flat = np.full(len(x_b), E_c_B)
-    # 접합 부근만 전이, 나머지는 수평
-    trans_frac = 0.5
-    n_trans = int(len(x_b) * trans_frac)
-    ec_b_combined = np.concatenate([
-        ec_b[:n_trans],
-        np.full(len(x_b) - n_trans, E_c_B)
-    ])
-
-    # BC 접합 전이: 베이스→컬렉터
-    t_bc = np.linspace(-4, 4, len(x_c))
-    sig_bc = 1 / (1 + np.exp(-t_bc))
-    ec_c = E_c_B + (E_c_C - E_c_B) * sig_bc
+    # ── BC 접합 전이 (베이스→컬렉터) ─────────
+    half_c = len(x_c) // 2
+    # BC 장벽 peak = E_c_B + bc_barrier
+    peak_BC = E_c_B + bc_barrier
+    ec_c_left  = np.linspace(E_c_B,   peak_BC, half_c)
+    ec_c_right = np.linspace(peak_BC, E_c_C,   len(x_c) - half_c)
+    ec_c_combined = np.concatenate([ec_c_left, ec_c_right])
 
     # 컬렉터 후반부는 수평
     n_trans_c = int(len(x_c) * 0.45)
