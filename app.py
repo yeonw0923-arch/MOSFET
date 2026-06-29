@@ -248,12 +248,6 @@ with col1:
     ec_c_right = np.linspace(peak_BC, E_c_C,   len(x_c) - half_c)
     ec_c_combined = np.concatenate([ec_c_left, ec_c_right])
 
-    # 컬렉터 후반부는 수평
-    n_trans_c = int(len(x_c) * 0.45)
-    ec_c_combined = np.concatenate([
-        ec_c[:n_trans_c],
-        np.full(len(x_c) - n_trans_c, E_c_C)
-    ])
 
     # ── E_v = E_c - E_g ───────────────────────
     ev_e = ec_e - E_g
