@@ -343,13 +343,13 @@ with col_mid:
     ec_src = np.full_like(x_src, E0)
 
     if region == "Cutoff":
-        # 차단: 채널에 전류 없음 → 채널 E_c 수평 유지
-        # V_DS 강하는 드레인 접합(채널-드레인 경계)에만 집중
-        ec_ch  = np.full_like(x_ch, E0)   # 채널 수평
-        ec_drn_start = E0
-        # 드레인 영역 내에서 강하 (드레인 n+ 시작 부분에서 급강하)
-        t_drn = np.linspace(0, 1, len(x_drn))
-        ec_drn = ec_drn_start + band_drop * (t_drn ** 2)
+        # 차단: 채널 수평 → 드레인 접합부에서 급강하 → 드레인 내부 수평
+        # sigmoid로 접합부에서만 급격히 전이, 드레인 내부는 수평
+        ec_ch  = np.full_like(x_ch, E0)
+        # 드레인: 접합부(앞 30%) 에서 급강하 후 수평
+        t_drn  = np.linspace(0, 1, len(x_drn))
+        # sigmoid: 0 근처에서 급강하, 이후 band_drop 수렴
+        ec_drn = E0 + band_drop * (1 - np.exp(-t_drn * 8))
     else:
         # 반전층: sin 굽힘(게이트) + 기울기(V_DS)
         ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
