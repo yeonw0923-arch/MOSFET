@@ -7,22 +7,26 @@ st.set_page_config(layout="wide", page_title="BJT 시뮬레이터")
 
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] { min-width:250px; max-width:250px; }
+    [data-testid="stSidebar"] { min-width:260px; max-width:260px; }
     [data-testid="stSidebar"] .element-container,
     [data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p { margin-bottom:0.2rem !important; }
     [data-testid="stSidebar"] hr { margin:6px 0 !important; }
     [data-testid="stSidebar"] .stSlider { margin-top:-15px !important; margin-bottom:-5px !important; }
     [data-testid="stSidebar"] .stNumberInput div[data-baseweb="input"],
-    [data-testid="stSidebar"] .stNumberInput div[data-baseweb="base-input"] { background-color:#ffffff !important; }
+    [data-testid="stSidebar"] .stNumberInput div[data-baseweb="base-input"] { background-color:#fff !important; }
     [data-testid="stSidebar"] .stNumberInput input {
         height:26px !important; padding:1px 4px !important;
-        font-size:0.75rem !important; color:#2c3e50 !important; background-color:#ffffff !important; }
-    [data-testid="stSidebar"] .stTextArea textarea { font-size:0.78rem !important; padding:5px !important; color:#2c3e50 !important; }
+        font-size:0.75rem !important; color:#2c3e50 !important; background:#fff !important; }
+    [data-testid="stSidebar"] .stTextArea textarea {
+        font-size:0.78rem !important; padding:5px !important; color:#2c3e50 !important; }
     div[data-testid="stRadio"] > div { flex-direction:row !important; gap:4px !important; }
-    .stat-card { background:#ffffff; border-radius:12px; padding:16px; border:1px solid #eaeaea; box-shadow:0px 4px 10px rgba(0,0,0,0.04); }
+    .block-container { padding-top:0.8rem !important; padding-bottom:1rem !important; }
+    .card { background:#fff; border-radius:12px; padding:16px;
+            border:1px solid #eaeaea; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
     .stat-label { font-size:0.68rem; color:#95a5a6; font-weight:600; }
     .stat-value { font-size:1.05rem; font-weight:700; color:#2c3e50; }
-    .block-container { padding-top:0.7rem !important; padding-bottom:0.5rem !important; }
+    .sec-title { font-size:0.72rem; font-weight:700; color:#64748b;
+                 text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,7 +37,7 @@ if "GEMINI_API_KEY" in st.secrets:
 # ── 사이드바 ──────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🔌 BJT 시뮬레이터")
-    bjt_type = st.radio("소자 타입", ["NPN", "PNP"], horizontal=True, label_visibility="collapsed")
+    bjt_type = st.radio("타입", ["NPN","PNP"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
     st.markdown("<span style='font-size:0.8rem;font-weight:700;color:#1e293b;'>접합 전압 인가</span>", unsafe_allow_html=True)
 
@@ -63,7 +67,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("<span style='font-size:0.8rem;font-weight:700;color:#1e293b;'>💬 AI 질문</span>", unsafe_allow_html=True)
-    user_question = st.text_area("질문 입력", height=60, label_visibility="collapsed",
+    user_question = st.text_area("질문", height=80, label_visibility="collapsed",
                                  value="현재 바이어스 상태가 증폭기로서 왜 적합한지 밴드 다이어그램 관점에서 설명해줘.")
     ai_btn = st.button("🚀 Gemini 분석 요청", use_container_width=True)
 
@@ -85,13 +89,13 @@ elif mode_en=="Saturation":
     q_vce=0.2; q_ic_A=(V_CC-q_vce)/R_C
 else:
     q_vce=V_CC; q_ic_A=0.0
-q_ic_mA=q_ic_A*1000
+q_ic_mA = q_ic_A*1000
 
-desc_map={
-    "forward_active":"B-E 순방향 + B-C 역방향 → 전자 확산 후 표류 → 증폭기 동작",
-    "saturation":    "양쪽 접합 순방향 → 캐리어 범람 → 닫힌 스위치 (V_CE≈0.2V)",
-    "reverse_active":"B-E 역방향 + B-C 순방향 → C→E 방향 역전 흐름",
-    "cutoff":        "양쪽 접합 역방향 → 전위장벽↑ → 캐리어 이동 없음 → 개방 스위치",
+desc_map = {
+    "forward_active": "B-E 순방향 + B-C 역방향 → 전자 확산 후 표류 → 증폭기 동작",
+    "saturation":     "양쪽 접합 순방향 → 캐리어 범람 → 닫힌 스위치 (V_CE ≈ 0.2V)",
+    "reverse_active": "B-E 역방향 + B-C 순방향 → C→E 방향 역전 흐름",
+    "cutoff":         "양쪽 접합 역방향 → 전위장벽↑ → 캐리어 이동 없음 → 개방 스위치",
 }
 
 # ── SVG 소자 구조도 ───────────────────────────────────────────────────
@@ -102,7 +106,7 @@ else:
     ef,es,el="#5c1a1a","#bf3a3a","P⁺"; bf,bs,bl,bt="#1a3a2a","#3abf6a","N","#9fc"
     cf,cs,cl="#3a2a1a","#bf8a3a","P"; vl1,vl2=f"V_EB={V_be:.2f}V",f"V_CB={V_bc:.2f}V"; vc1,vc2="#ca7","#a7c"
 
-bjt_svg=f"""<svg width="500" height="80" style="display:block;max-width:100%;">
+bjt_svg = f"""<svg width="500" height="80" style="display:block;max-width:100%;">
   <defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
     <path d="M2 1L8 5L2 9" fill="none" stroke="#aaa" stroke-width="1.5"/></marker></defs>
   <rect x="55"  y="14" width="105" height="46" rx="4" fill="{ef}" stroke="{es}" stroke-width="1.5"/>
@@ -126,66 +130,113 @@ bjt_svg=f"""<svg width="500" height="80" style="display:block;max-width:100%;">
   <text x="452" y="46" fill="#888" font-size="9"  font-family="monospace">BJT</text>
 </svg>"""
 
-# ════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════
 #  LAYOUT
-#  Row1: [동작영역 카드 (col_a)] [AI 해설 (col_b)]
-#  Row2: [에너지밴드 (col_c)]    [캐리어 애니메이션 (col_d)]
-#  Row3: [I-V 곡선 전체 너비]
-# ════════════════════════════════════════════════════════════════════════
+#  Row 1: [동작영역 카드 (45%)] [캐리어 애니메이션 (55%)]
+#  Row 2: [에너지밴드 다이어그램 (50%)] [I-V 특성 곡선 (50%)]
+#  Row 3: [AI 해설 전체 너비]
+# ════════════════════════════════════════════════════════════════════
 
-# ── Row 1 ──────────────────────────────────────────────────────────────
-col_a, col_b = st.columns([0.40, 0.60])
+# ── Row 1: 동작영역 + 캐리어 애니메이션 ──────────────────────────────
+row1_left, row1_right = st.columns([0.42, 0.58])
 
-with col_a:
+with row1_left:
+    st.markdown("<div class='sec-title'>📌 동작 영역</div>", unsafe_allow_html=True)
     st.markdown(f"""
-    <div class='stat-card'>
+    <div class='card'>
       <div style='font-size:0.68rem;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px;'>Operating Region</div>
-      <div style='font-size:1.3rem;font-weight:800;color:{mode_color};margin-bottom:10px;'>
-        {mode} <span style='font-size:0.88rem;font-weight:500;'>({mode_en})</span>
+      <div style='font-size:1.4rem;font-weight:800;color:{mode_color};margin-bottom:12px;'>
+        {mode}<br><span style='font-size:0.88rem;font-weight:500;'>({mode_en})</span>
       </div>
-      <div style='display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;'>
-        <div><div class='stat-label'>V_CE</div><div class='stat-value'>{abs(V_be-V_bc):.2f}V</div></div>
-        <div><div class='stat-label'>I_C</div><div class='stat-value'>{q_ic_mA:.2f}mA</div></div>
-        <div><div class='stat-label'>I_B</div><div class='stat-value'>{I_B_A*1e6:.1f}μA</div></div>
-        <div><div class='stat-label'>V_CEQ</div><div class='stat-value'>{q_vce:.2f}V</div></div>
+      <div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;'>
+        <div><div class='stat-label'>인가전압 V_CE</div><div class='stat-value'>{abs(V_be-V_bc):.2f} V</div></div>
+        <div><div class='stat-label'>컬렉터전류 I_C</div><div class='stat-value'>{q_ic_mA:.2f} mA</div></div>
+        <div><div class='stat-label'>베이스전류 I_B</div><div class='stat-value'>{I_B_A*1e6:.1f} μA</div></div>
+        <div><div class='stat-label'>Q점 V_CEQ</div><div class='stat-value'>{q_vce:.2f} V</div></div>
       </div>
-    </div>""", unsafe_allow_html=True)
+      <div style='margin-top:12px;padding:10px;background:#f8fafc;border-radius:8px;
+                  border-left:3px solid {mode_color};font-size:0.8rem;color:{mode_color};
+                  font-weight:600;line-height:1.5;'>
+        {desc_map[anim_key]}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-with col_b:
-    if ai_btn and "GEMINI_API_KEY" in st.secrets:
-        with st.spinner("분석 중..."):
-            try:
-                prompt=f"""반도체 소자 물리학 전문가. 인삿말 없이 바로 분석 시작.
-BJT={bjt_type}, V_BE={V_be:.2f}V, V_BC={V_bc:.2f}V, 모드={mode}({mode_en})
-I_B={I_B_A*1e6:.2f}μA, I_C={q_ic_mA:.2f}mA, V_CEQ={q_vce:.2f}V
-6주차 에너지밴드+7주차 바이어스 교안 연결, 한국어 마크다운.
-질문: "{user_question}"
+with row1_right:
+    st.markdown("<div class='sec-title'>⚡ 캐리어 이동 애니메이션</div>", unsafe_allow_html=True)
+    canvas_html = f"""
+<div style="display:flex;flex-direction:column;gap:8px;">
+  {bjt_svg}
+  <canvas id="bjtCvs" width="560" height="140"
+    style="background:#1e1e2e;border-radius:8px;display:block;width:100%;
+           box-shadow:0 2px 8px rgba(0,0,0,0.2);"></canvas>
+  <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
+    <span style="color:#00E6FF;font-weight:700;">● 전자 (Electron)</span>&nbsp;&nbsp;
+    <span style="color:#FF7043;font-weight:700;">● 정공 (Hole)</span>
+  </div>
+</div>
+<script>
+(function(){{
+  const c=document.getElementById('bjtCvs');
+  if(!c)return;
+  if(c._aid)cancelAnimationFrame(c._aid);
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const MODE='{anim_key}',BJT='{bjt_type}';
+  const XBE=Math.round(W*0.33),XBC=Math.round(W*0.67),YM=H/2;
+  let pts=[];
+  for(let i=0;i<38;i++) pts.push({{x:Math.random()*W,y:YM-25+Math.random()*50,r:4.2,t:'e',d:1}});
+  for(let i=0;i<28;i++) pts.push({{x:Math.random()*W,y:YM-20+Math.random()*40,r:4.0,t:'h',d:-1}});
+  function frame(){{
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='rgba(30,100,200,0.07)';  ctx.fillRect(0,0,XBE,H);
+    ctx.fillStyle='rgba(200,60,60,0.07)';   ctx.fillRect(XBE,0,XBC-XBE,H);
+    ctx.fillStyle='rgba(30,160,80,0.07)';   ctx.fillRect(XBC,0,W-XBC,H);
+    [XBE,XBC].forEach(x=>{{
+      ctx.strokeStyle='rgba(180,180,180,0.35)';ctx.lineWidth=1;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+      ctx.setLineDash([]);
+    }});
+    ctx.font='bold 10px monospace';
+    ctx.fillStyle='#7ab4f8'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,15);
+    ctx.fillStyle='#f28b82'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,15);
+    ctx.fillStyle='#81c995'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,15);
+    pts.forEach(p=>{{
+      const col=p.t==='e'?'#00E6FF':'#FF7043';
+      ctx.shadowBlur=6;ctx.shadowColor=col;ctx.fillStyle=col;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+      let vx=0;
+      if(MODE==='forward_active'){{
+        vx=(p.t==='e')?(BJT==='NPN'?3.5:-3.5):(BJT==='NPN'?-1.5:1.5);
+      }}else if(MODE==='saturation'){{
+        vx=p.d*(p.t==='e'?2.8:1.4);
+        if(p.x>W-4||p.x<4)p.d*=-1;
+      }}else if(MODE==='reverse_active'){{
+        vx=(p.t==='e')?(BJT==='NPN'?-3.5:3.5):(BJT==='NPN'?1.5:-1.5);
+      }}
+      p.x+=vx+(Math.random()-0.5)*(MODE==='cutoff'?0.7:0.22);
+      p.y+=(Math.random()-0.5)*0.6;
+      p.y=Math.max(22,Math.min(H-14,p.y));
+      if(p.x>W)p.x=0; if(p.x<0)p.x=W;
+    }});
+    c._aid=requestAnimationFrame(frame);
+  }}
+  frame();
+}})();
+</script>
 """
-                resp=genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
-                st.markdown(f"""<div style='background:#f8f9fa;padding:12px;border-radius:10px;
-                    border:1px solid #eaeaea;font-size:0.8rem;height:130px;overflow-y:auto;line-height:1.45;'>
-                    <b>💡 AI 해설</b><br>{resp.text}</div>""", unsafe_allow_html=True)
-            except Exception as e:
-                st.error(str(e))
-    elif ai_btn:
-        st.error("GEMINI_API_KEY 없음")
-    else:
-        st.markdown(f"""<div style='background:#f8f9fa;padding:12px;border-radius:10px;
-            border:1px solid #eaeaea;height:130px;display:flex;flex-direction:column;justify-content:center;'>
-            <div style='font-size:0.72rem;color:#64748b;font-weight:700;margin-bottom:6px;'>📌 현재 모드</div>
-            <div style='font-size:0.85rem;color:{mode_color};font-weight:600;line-height:1.5;'>{desc_map[anim_key]}</div>
-            <div style='font-size:0.7rem;color:#94a3b8;margin-top:8px;'>상세 분석 → 사이드바 Gemini 분석 버튼</div>
-        </div>""", unsafe_allow_html=True)
+    components.html(canvas_html, height=310)
 
-st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
 
-# ── Row 2 ──────────────────────────────────────────────────────────────
-col_c, col_d = st.columns([0.52, 0.48])
+# ── Row 2: 에너지 밴드 + I-V 곡선 ────────────────────────────────────
+row2_left, row2_right = st.columns([0.50, 0.50])
 
-with col_c:
-    st.markdown("<p style='font-size:0.75rem;font-weight:700;color:#64748b;margin-bottom:4px;'>🔋 에너지 밴드 다이어그램</p>", unsafe_allow_html=True)
+with row2_left:
+    st.markdown("<div class='sec-title'>🔋 에너지 밴드 다이어그램</div>", unsafe_allow_html=True)
 
-    # 에너지 밴드 계산
     E_g=1.12; x_all=np.linspace(0,8.0,400); ec_all=np.zeros_like(x_all)
     v_be_eff=float(np.clip(V_be,-5.0,0.75)); v_bc_eff=float(np.clip(V_bc,-5.0,0.75))
     if bjt_type=="NPN":
@@ -239,135 +290,93 @@ with col_c:
     fig_band.update_layout(
         xaxis=dict(visible=False,range=[-0.2,8.6]),
         yaxis=dict(visible=False,range=[min(ev_all)-0.4,max(ec_all)+0.9]),
-        height=300,margin=dict(l=5,r=5,t=5,b=5),
+        height=340,margin=dict(l=5,r=5,t=5,b=5),
         showlegend=True,
         legend=dict(x=0.01,y=0.02,bgcolor='rgba(255,255,255,0.85)',
                     bordercolor='lightgray',borderwidth=1,font=dict(size=9),orientation='h'),
         plot_bgcolor='white')
     st.plotly_chart(fig_band, use_container_width=True)
 
-with col_d:
-    st.markdown("<p style='font-size:0.75rem;font-weight:700;color:#64748b;margin-bottom:4px;'>⚡ 캐리어 이동 애니메이션</p>", unsafe_allow_html=True)
-    canvas_html = f"""
-<div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
-  {bjt_svg}
-  <canvas id="bjtCvs" width="520" height="130"
-    style="background:#1e1e2e;border-radius:8px;display:block;width:100%;
-           box-shadow:0 2px 8px rgba(0,0,0,0.2);"></canvas>
-  <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
-    <span style="color:#00E6FF;font-weight:700;">● 전자</span>&nbsp;&nbsp;
-    <span style="color:#FF7043;font-weight:700;">● 정공</span>&nbsp;&nbsp;
-    <span style="color:{mode_color};font-weight:600;">{mode}</span>
-  </div>
-  <div style="background:#1a1a2e;border-radius:8px;padding:8px 12px;
-              border-left:3px solid {mode_color};font-size:0.78rem;
-              color:{mode_color};font-family:sans-serif;line-height:1.5;width:100%;box-sizing:border-box;">
-    {desc_map[anim_key]}
-  </div>
-</div>
-<script>
-(function(){{
-  const c=document.getElementById('bjtCvs');
-  if(!c)return;
-  if(c._aid)cancelAnimationFrame(c._aid);
-  const ctx=c.getContext('2d');
-  const W=c.width,H=c.height;
-  const MODE='{anim_key}',BJT='{bjt_type}';
-  const XBE=Math.round(W*0.33),XBC=Math.round(W*0.67),YM=H/2;
-  let pts=[];
-  for(let i=0;i<35;i++) pts.push({{x:Math.random()*W,y:YM-22+Math.random()*44,r:4,t:'e',d:1}});
-  for(let i=0;i<25;i++) pts.push({{x:Math.random()*W,y:YM-18+Math.random()*36,r:3.8,t:'h',d:-1}});
-  function frame(){{
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle='rgba(30,100,200,0.07)';  ctx.fillRect(0,0,XBE,H);
-    ctx.fillStyle='rgba(200,60,60,0.07)';   ctx.fillRect(XBE,0,XBC-XBE,H);
-    ctx.fillStyle='rgba(30,160,80,0.07)';   ctx.fillRect(XBC,0,W-XBC,H);
-    [XBE,XBC].forEach(x=>{{
-      ctx.strokeStyle='rgba(180,180,180,0.35)';ctx.lineWidth=1;
-      ctx.setLineDash([4,4]);
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
-      ctx.setLineDash([]);
-    }});
-    ctx.font='bold 10px monospace';
-    ctx.fillStyle='#7ab4f8'; ctx.fillText(BJT==='NPN'?'Emitter(N+)':'Emitter(P+)',6,14);
-    ctx.fillStyle='#f28b82'; ctx.fillText(BJT==='NPN'?'Base(P)':'Base(N)',XBE+8,14);
-    ctx.fillStyle='#81c995'; ctx.fillText(BJT==='NPN'?'Collector(N)':'Collector(P)',XBC+6,14);
-    pts.forEach(p=>{{
-      const col=p.t==='e'?'#00E6FF':'#FF7043';
-      ctx.shadowBlur=6;ctx.shadowColor=col;ctx.fillStyle=col;
-      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;
-      let vx=0;
-      if(MODE==='forward_active'){{
-        vx=(p.t==='e')?(BJT==='NPN'?3.5:-3.5):(BJT==='NPN'?-1.5:1.5);
-      }}else if(MODE==='saturation'){{
-        vx=p.d*(p.t==='e'?2.8:1.4);
-        if(p.x>W-4||p.x<4)p.d*=-1;
-      }}else if(MODE==='reverse_active'){{
-        vx=(p.t==='e')?(BJT==='NPN'?-3.5:3.5):(BJT==='NPN'?1.5:-1.5);
-      }}
-      // cutoff: vx=0 (정지)
-      p.x+=vx+(Math.random()-0.5)*(MODE==='cutoff'?0.6:0.2);
-      p.y+=(Math.random()-0.5)*0.5;
-      p.y=Math.max(22,Math.min(H-12,p.y));
-      if(p.x>W)p.x=0; if(p.x<0)p.x=W;
-    }});
-    c._aid=requestAnimationFrame(frame);
-  }}
-  frame();
-}})();
-</script>
+with row2_right:
+    st.markdown("<div class='sec-title'>📈 I_C – V_CE 특성 곡선 & 직류 부하선</div>", unsafe_allow_html=True)
+
+    fig_iv=go.Figure()
+    sign=1 if bjt_type=="NPN" else -1
+    v_arr=np.linspace(0,V_CC+0.8,300)
+    bc=(255,127,14) if bjt_type=="NPN" else (148,103,189)
+    for idx,ib_uA in enumerate([10,20,30,40,50]):
+        ic_sat=beta*(ib_uA*1e-6)*1000
+        col=f"rgba({bc[0]},{bc[1]},{bc[2]},{0.38+0.13*idx:.2f})"
+        ic_c=[max(0.0,ic_sat*np.tanh(v/0.12)*(1+early_k*v)) for v in v_arr]
+        fig_iv.add_trace(go.Scatter(x=[sign*v for v in v_arr],y=[sign*ic for ic in ic_c],
+                                    mode='lines',line=dict(color=col,width=2.2),showlegend=False))
+        fig_iv.add_annotation(x=sign*(V_CC+0.85),y=sign*ic_sat*(1+early_k*(V_CC+0.8)),
+                               text=f"I_B={ib_uA}μA",showarrow=False,font=dict(size=9,color='gray'),
+                               xanchor='left' if bjt_type=="NPN" else 'right')
+    sat_ic=(V_CC/R_C)*1000
+    fig_iv.add_trace(go.Scatter(x=[0,sign*V_CC],y=[sign*sat_ic,0],
+                                 mode='lines',line=dict(color='black',width=2.8),name='직류 부하선'))
+    fig_iv.add_vline(x=sign*0.2,line=dict(color='purple',width=1.2,dash='dot'))
+    fig_iv.add_annotation(x=sign*0.22,y=sign*sat_ic*0.55,text="V_CE,sat",
+                           showarrow=False,font=dict(size=9,color='purple'),textangle=-90)
+    q_x,q_y=sign*q_vce,sign*q_ic_mA
+    fig_iv.add_trace(go.Scatter(x=[q_x],y=[q_y],mode='markers',
+                                 marker=dict(color='red',size=13,symbol='circle',line=dict(color='white',width=2)),
+                                 name=f"Q점"))
+    fig_iv.add_annotation(x=q_x,y=q_y+sign*0.4,
+                           text=f"<b>Q ({q_x:.2f}V, {q_y:.2f}mA)</b>",
+                           showarrow=False,font=dict(color='red',size=11))
+    fig_iv.add_shape(type='line',x0=q_x,x1=q_x,y0=0,y1=q_y,line=dict(color='red',width=1,dash='dash'))
+    fig_iv.add_shape(type='line',x0=0,x1=q_x,y0=q_y,y1=q_y,line=dict(color='red',width=1,dash='dash'))
+    fig_iv.add_annotation(x=sign*0.15,y=sign*(sat_ic+0.3),text="<b>포화점</b>",
+                           showarrow=True,ax=sign*0.7,ay=sign*(sat_ic-0.5),arrowhead=2,font=dict(size=10))
+    fig_iv.add_annotation(x=sign*(V_CC-0.15),y=sign*0.35,text="<b>차단점</b>",
+                           showarrow=True,ax=sign*(V_CC-0.9),ay=sign*0.9,arrowhead=2,font=dict(size=10))
+    xr=[-0.1,V_CC+1.3] if bjt_type=="NPN" else [-(V_CC+1.3),0.1]
+    yr=[-0.3,sat_ic+1.4] if bjt_type=="NPN" else [-(sat_ic+1.4),0.3]
+    fig_iv.update_layout(
+        xaxis_title="V_CE [V]",yaxis_title="I_C [mA]",
+        xaxis=dict(range=xr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
+        yaxis=dict(range=yr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
+        height=340,margin=dict(l=10,r=10,t=5,b=40),showlegend=True,
+        legend=dict(x=0.55 if bjt_type=="NPN" else 0.01,y=0.98 if bjt_type=="NPN" else 0.15,
+                    bgcolor='rgba(255,255,255,0.88)',bordercolor='#ddd',borderwidth=1,font=dict(size=10)),
+        plot_bgcolor='white')
+    st.plotly_chart(fig_iv, use_container_width=True)
+
+st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
+
+# ── Row 3: AI 해설 전체 너비 ─────────────────────────────────────────
+st.markdown("<div class='sec-title'>🤖 AI 상세 해설</div>", unsafe_allow_html=True)
+if ai_btn and "GEMINI_API_KEY" in st.secrets:
+    with st.spinner("분석 중..."):
+        try:
+            prompt = f"""반도체 소자 물리학 전문가. 인삿말 없이 바로 분석 시작.
+BJT={bjt_type}, V_BE={V_be:.2f}V, V_BC={V_bc:.2f}V, 모드={mode}({mode_en})
+I_B={I_B_A*1e6:.2f}μA, I_C={q_ic_mA:.2f}mA, V_CEQ={q_vce:.2f}V
+6주차 에너지밴드 교안(열적평형, 순방향 장벽 하강, 캐리어 확산/표류)과
+7주차 바이어스 교안(직류 부하선, Q점 설계, 왜곡 방지)을 연결하여
+한국어 마크다운으로 상세 답변하세요.
+질문: "{user_question}"
 """
-    components.html(canvas_html, height=320)
-
-st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-
-# ── Row 3: I-V 곡선 전체 너비 ─────────────────────────────────────────
-st.markdown("<p style='font-size:0.75rem;font-weight:700;color:#64748b;margin-bottom:4px;'>📈 I_C – V_CE 특성 곡선 & 직류 부하선</p>", unsafe_allow_html=True)
-
-fig_iv=go.Figure()
-sign=1 if bjt_type=="NPN" else -1
-v_arr=np.linspace(0,V_CC+0.8,300)
-bc=(255,127,14) if bjt_type=="NPN" else (148,103,189)
-
-for idx,ib_uA in enumerate([10,20,30,40,50]):
-    ic_sat=beta*(ib_uA*1e-6)*1000
-    col=f"rgba({bc[0]},{bc[1]},{bc[2]},{0.38+0.13*idx:.2f})"
-    ic_c=[max(0.0,ic_sat*np.tanh(v/0.12)*(1+early_k*v)) for v in v_arr]
-    fig_iv.add_trace(go.Scatter(x=[sign*v for v in v_arr],y=[sign*ic for ic in ic_c],
-                                mode='lines',line=dict(color=col,width=2.2),showlegend=False))
-    fig_iv.add_annotation(x=sign*(V_CC+0.85),y=sign*ic_sat*(1+early_k*(V_CC+0.8)),
-                           text=f"I_B={ib_uA}μA",showarrow=False,font=dict(size=9,color='gray'),
-                           xanchor='left' if bjt_type=="NPN" else 'right')
-
-sat_ic=(V_CC/R_C)*1000
-fig_iv.add_trace(go.Scatter(x=[0,sign*V_CC],y=[sign*sat_ic,0],
-                             mode='lines',line=dict(color='black',width=2.8),name='직류 부하선'))
-fig_iv.add_vline(x=sign*0.2,line=dict(color='purple',width=1.2,dash='dot'))
-fig_iv.add_annotation(x=sign*0.22,y=sign*sat_ic*0.55,text="V_CE,sat",
-                       showarrow=False,font=dict(size=9,color='purple'),textangle=-90)
-
-q_x,q_y=sign*q_vce,sign*q_ic_mA
-fig_iv.add_trace(go.Scatter(x=[q_x],y=[q_y],mode='markers',
-                             marker=dict(color='red',size=13,symbol='circle',line=dict(color='white',width=2)),
-                             name=f"Q점 ({q_x:.2f}V, {q_y:.2f}mA)"))
-fig_iv.add_annotation(x=q_x,y=q_y+sign*0.4,text=f"<b>Q ({q_x:.2f}V, {q_y:.2f}mA)</b>",
-                       showarrow=False,font=dict(color='red',size=11))
-fig_iv.add_shape(type='line',x0=q_x,x1=q_x,y0=0,y1=q_y,line=dict(color='red',width=1,dash='dash'))
-fig_iv.add_shape(type='line',x0=0,x1=q_x,y0=q_y,y1=q_y,line=dict(color='red',width=1,dash='dash'))
-fig_iv.add_annotation(x=sign*0.15,y=sign*(sat_ic+0.3),text="<b>포화점</b>",
-                       showarrow=True,ax=sign*0.7,ay=sign*(sat_ic-0.5),arrowhead=2,font=dict(size=10))
-fig_iv.add_annotation(x=sign*(V_CC-0.15),y=sign*0.35,text="<b>차단점</b>",
-                       showarrow=True,ax=sign*(V_CC-0.9),ay=sign*0.9,arrowhead=2,font=dict(size=10))
-
-xr=[-0.1,V_CC+1.3] if bjt_type=="NPN" else [-(V_CC+1.3),0.1]
-yr=[-0.3,sat_ic+1.4] if bjt_type=="NPN" else [-(sat_ic+1.4),0.3]
-fig_iv.update_layout(
-    xaxis_title="V_CE [V]",yaxis_title="I_C [mA]",
-    xaxis=dict(range=xr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
-    yaxis=dict(range=yr,showgrid=True,gridcolor='#EEEEEE',zeroline=True,zerolinecolor='black',zerolinewidth=1.5),
-    height=270,margin=dict(l=10,r=10,t=5,b=40),showlegend=True,
-    legend=dict(x=0.55 if bjt_type=="NPN" else 0.01,y=0.98 if bjt_type=="NPN" else 0.15,
-                bgcolor='rgba(255,255,255,0.88)',bordercolor='#ddd',borderwidth=1,font=dict(size=10)),
-    plot_bgcolor='white')
-st.plotly_chart(fig_iv, use_container_width=True)
+            resp = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+            st.markdown(f"""
+            <div style='background:#f8f9fa;padding:20px;border-radius:12px;
+                        border:1px solid #eaeaea;font-size:0.85rem;line-height:1.6;'>
+              <strong>💡 AI 물리적 해설</strong><br><br>{resp.text}
+            </div>""", unsafe_allow_html=True)
+        except Exception as e:
+            st.error(str(e))
+elif ai_btn:
+    st.error("GEMINI_API_KEY가 설정되지 않았습니다.")
+else:
+    st.markdown(f"""
+    <div style='background:#f8f9fa;padding:20px;border-radius:12px;border:1px solid #eaeaea;
+                display:flex;align-items:center;gap:16px;'>
+      <div style='font-size:2rem;'>🤖</div>
+      <div>
+        <div style='font-size:0.85rem;font-weight:700;color:#2c3e50;margin-bottom:4px;'>AI 상세 해설 대기 중</div>
+        <div style='font-size:0.8rem;color:#64748b;'>사이드바에서 질문을 입력하고 <b>Gemini 분석 요청</b> 버튼을 누르면
+        현재 바이어스 상태에 대한 물리적 해설이 이 자리에 표시됩니다.</div>
+      </div>
+    </div>""", unsafe_allow_html=True)
