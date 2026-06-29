@@ -239,68 +239,112 @@ with col_mid:
     #     ef_drn = ef_src + abs_vds (PMOS: 반대 방향)
     # ════════════════════════════════════════════════════════
 
-    Eg       = 1.12
-    abs_vgs  = abs(vgs)
-    abs_vds  = abs(vds)
-    abs_vth  = abs(vth)
-    vgs_eff_plot = max(abs_vgs - abs_vth, 0.0)
+    # ════════════════════════════════════════════════════════
+    #  에너지 밴드 다이어그램 계산 원칙
+    #
+    #  좌표계: x=0(소스) ~ x=1(채널 시작) ~ x=2(채널 끝) ~ x=3(드레인)
+    #  에너지 단위: eV (실제 전압값 직접 사용)
+    #
+    #  [E_F 위치]
+    #  NMOS: p-substrate → 다수 캐리어=정공 → E_F는 E_v 가까이
+    #        ef_src = E_v_src + 0.15  (E_v에서 0.15eV 위)
+    #  PMOS: n-substrate → 다수 캐리어=전자 → E_F는 E_c 가까이
+    #        ef_src = E_c_src - 0.15  (E_c에서 0.15eV 아래)
+    #
+    #  [드레인 E_F 분리]
+    #  NMOS: ef_drn = ef_src - V_DS  (드레인 전위 높음 → 전자 에너지 낮음)
+    #  PMOS: ef_drn = ef_src + V_DS  (드레인 전위 낮음 → 정공 에너지 낮음)
+    #  → 단, 그래프 스케일에 맞게 0.4 배율 적용
+    #
+    #  [E_c 밴드 휨]
+    #  NMOS: V_DS > 0 → 드레인 쪽 E_c 하강 (band_drop < 0)
+    #  PMOS: V_DS > 0 (슬라이더) → 실제 V_DS < 0 → 드레인 쪽 E_c 상승 (band_drop > 0)
+    #
+    #  [채널 영역 게이트 굽힘]
+    #  NMOS 반전층(Linear/Sat): 채널 E_c가 E_F 근처까지 내려옴
+    #    → 반전 시 채널 E_c ≈ ef_src (E_F 근처까지)
+    #    → gate_bend = ef_src - E0  (음수: 채널이 E_F 근처까지 내려옴)
+    #  NMOS 차단: 게이트 전압 낮아서 E_c 위로 굽음 (공핍)
+    #    → gate_bend = +0.15 (작게, E_v > E_F 안 되게)
+    #  PMOS: 반대 방향
+    # ════════════════════════════════════════════════════════
 
-    # ── 소스 기준 E_c 레벨 ────────────────────────────────
-    E0 = 2.0   # 소스 영역 E_c (기준점)
+    Eg           = 1.12
+    abs_vds      = abs(vds)
+    abs_vth      = abs(vth)
+    vgs_eff_plot = max(abs(vgs) - abs_vth, 0.0)
+    SCALE        = 0.40   # eV/V 표시 배율 (5V → 2eV 범위에 맞게)
 
-    # ── E_F 위치 수정 ─────────────────────────────────────
-    # NMOS: p-substrate → E_F는 E_v 가까이 (E_v + 0.12 eV)
-    # PMOS: n-substrate → E_F는 E_c 가까이 (E_c - 0.12 eV)
+    E0    = 2.0           # 소스 E_c 기준
+    Ev0   = E0 - Eg       # 소스 E_v = 0.88
+
+    # ── E_F 소스 위치 ─────────────────────────────────────
     if device == "NMOS":
-        ef_src_val = (E0 - Eg) + 0.12   # E_v + 0.12
+        ef_src_val = Ev0 + 0.15   # p-substrate: E_v 가까이 ≈ 1.03
     else:
-        ef_src_val = E0 - 0.12           # E_c - 0.12
+        ef_src_val = E0 - 0.15    # n-substrate: E_c 가까이 ≈ 1.85
 
-    # ── V_DS에 의한 드레인 쪽 밴드 강하량 ────────────────
-    # NMOS: 드레인 전위 높아짐 → 전자 에너지 낮아짐 → E_c 하강 (음수)
-    # PMOS: 실제 V_DS < 0 → 드레인 전위 낮아짐 → 정공 에너지 낮아짐 → E_c 상승 (양수)
-    max_drop = 2.0   # 최대 표시 강하량 클램프
+    # ── 드레인 E_F (소스 대비 qV_DS 만큼 분리) ───────────
     if device == "NMOS":
-        band_drop = -min(abs_vds * 0.45, max_drop)   # 음수: E_c 하강
+        ef_drn_val = ef_src_val - abs_vds * SCALE   # 드레인 E_F 낮아짐
     else:
-        band_drop = +min(abs_vds * 0.45, max_drop)   # 양수: E_c 상승
+        ef_drn_val = ef_src_val + abs_vds * SCALE   # PMOS: 드레인 E_F 높아짐
 
-    # ── 게이트 전압에 의한 채널 밴드 굽힘 ────────────────
-    # NMOS: V_GS 증가 → 채널 E_c 아래로 당겨짐(반전층 형성)
-    #        V_GS < V_TH → 채널 E_c 위로 굽음 (공핍층)
-    #        채널 중앙에서의 추가 굽힘 = -(V_GS - V_TH) * 0.3 (NMOS)
-    # PMOS: 반대 방향
+    # ── V_DS에 의한 드레인 밴드 강하 ─────────────────────
+    max_drop = 1.8
     if device == "NMOS":
-        gate_bend = -vgs_eff_plot * 0.3   # 반전 형성 시 아래로
+        band_drop = -min(abs_vds * SCALE, max_drop)   # 음수: E_c 하강
+    else:
+        band_drop = +min(abs_vds * SCALE, max_drop)   # 양수: E_c 상승
+
+    # ── 채널 게이트 굽힘 ──────────────────────────────────
+    # 반전층 형성 시: 채널 E_c가 E_F 근처까지 내려옴
+    # → gate_bend = ef_src_val - E0 (음수, NMOS)
+    # 단, Linear/Saturation 강도 차이 없음 (모드보다 V_GS 크기로 결정)
+    # 차단: 소량의 위로 굽음 (공핍), E_v가 E_F를 넘지 않도록 제한
+    if device == "NMOS":
         if region == "Cutoff":
-            gate_bend = abs_vth * 0.25    # 차단 시 위로 굽음 (공핍)
+            gate_bend = +0.12   # 공핍: E_c 살짝 위로, E_v는 여전히 E_F 아래
+        else:
+            # 반전: 채널 중앙 E_c가 E_F + 약간 위로 내려옴
+            gate_bend = ef_src_val - E0 + 0.10   # 음수 (≈ -0.87)
+            gate_bend = max(gate_bend, -(Eg * 0.8))  # 과도한 굽힘 방지
     else:
-        gate_bend = +vgs_eff_plot * 0.3
         if region == "Cutoff":
-            gate_bend = -abs_vth * 0.25
+            gate_bend = -0.12
+        else:
+            gate_bend = ef_src_val - E0 - 0.10   # PMOS: 양수 방향
+            gate_bend = min(gate_bend, +(Eg * 0.8))
 
     # ── x 좌표 ────────────────────────────────────────────
     x_src = np.linspace(0.0, 1.0, 50)
     x_ch  = np.linspace(1.0, 2.0, 80)
     x_drn = np.linspace(2.0, 3.0, 50)
-    t_ch  = x_ch - 1.0   # 0 → 1
+    t_ch  = x_ch - 1.0   # 0 → 1 (채널 내 위치)
 
-    # ── 채널 영역 E_c 프로파일 ───────────────────────────
-    # V_DS 강하의 공간적 분포: 모드에 따라 집중 위치 다름
-    #   Linear:     균일한 기울기 (n=1)
-    #   Saturation: 드레인 근처에 집중 (n↑)
-    #   Cutoff:     드레인 접합에 집중 (n=3)
+    # ── V_DS 강하 분포 (모드별 집중 위치) ────────────────
     if region == "Linear" and vgs_eff_plot > 0:
-        n_exp = 1.0
+        n_exp = 1.0                                        # 균일 기울기
     elif region == "Saturation" and vgs_eff_plot > 0:
         ratio = float(np.clip(vds_sat / max(abs_vds, 0.01), 0.15, 0.85))
-        n_exp = 1.0 + (1.0 - ratio) * 3.5
+        n_exp = 1.0 + (1.0 - ratio) * 3.0                 # 드레인 근처 집중
     else:
-        n_exp = 3.0
+        n_exp = 3.0                                        # 차단: 드레인 접합 집중
 
+    # ── E_c 프로파일 구성 ────────────────────────────────
     ec_src = np.full_like(x_src, E0)
-    # 채널: gate_bend (게이트에 의한 균일 굽힘) + band_drop (V_DS에 의한 드레인 쪽 강하)
+
+    # 채널: sin 굽힘(게이트) + 기울기(V_DS)
+    # gate_bend * sin: 채널 중앙에서 최대 굽힘, 소스/드레인 경계에서 0
+    # band_drop * t^n: V_DS에 의한 드레인 쪽 강하
     ec_ch  = E0 + gate_bend * np.sin(t_ch * np.pi) + band_drop * (t_ch ** n_exp)
+
+    # 차단 모드: E_v가 E_F를 넘지 않도록 E_c 클램프
+    if region == "Cutoff" and device == "NMOS":
+        ec_ch = np.maximum(ec_ch, ef_src_val + Eg + 0.05)  # E_v < E_F 보장
+    elif region == "Cutoff" and device == "PMOS":
+        ec_ch = np.minimum(ec_ch, ef_src_val - 0.05)
+
     ec_drn = np.full_like(x_drn, E0 + band_drop)
 
     ev_src = ec_src - Eg
@@ -310,14 +354,6 @@ with col_mid:
     x_all  = np.concatenate([x_src, x_ch,  x_drn])
     ec_all = np.concatenate([ec_src, ec_ch, ec_drn])
     ev_all = np.concatenate([ev_src, ev_ch, ev_drn])
-
-    # ── E_F 소스/드레인 분리: 정확히 qV_DS 만큼 ─────────
-    # NMOS: 드레인 E_F = 소스 E_F - V_DS (전자 전기화학 퍼텐셜)
-    # PMOS: 드레인 E_F = 소스 E_F + V_DS
-    if device == "NMOS":
-        ef_drn_val = ef_src_val - abs_vds * 0.45   # band_drop과 동일 스케일
-    else:
-        ef_drn_val = ef_src_val + abs_vds * 0.45
 
     ch_mid_ec = float(ec_ch[len(ec_ch) // 2])
 
