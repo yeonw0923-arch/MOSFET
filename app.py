@@ -167,7 +167,7 @@ with row1_right:
     canvas_html = f"""
 <div style="display:flex;flex-direction:column;gap:8px;">
   {bjt_svg}
-  <canvas id="bjtCvs" width="560" height="140"
+  <canvas id="bjtCvs" width="560" height="160"
     style="background:#1e1e2e;border-radius:8px;display:block;width:100%;
            box-shadow:0 2px 8px rgba(0,0,0,0.2);"></canvas>
   <div style="font-size:0.75rem;color:#aaa;font-family:sans-serif;">
@@ -195,7 +195,7 @@ with row1_right:
   //
   // 각 파티클: {{x, y, r, t('e'|'h'), zone('E'|'B'|'C'), recomb, recombT}}
 
-  function randY() {{ return YM - 28 + Math.random()*56; }}
+  function randY() {{ return YM - 35 + Math.random()*70; }}
 
   let pts = [];
 
@@ -277,33 +277,32 @@ with row1_right:
             if(p.x > W) {{ p.x=5; p.zone='E'; }}  // 리셋: 이미터로 돌아감
           }} else {{
             // 정공은 베이스 안에서만
-            vx = (Math.random()-0.5)*1.2;
-            vy = (Math.random()-0.5)*1.2;
-            // 베이스 경계 클램프
-            if(p.x < XBE+4) p.x = XBE+4;
-            if(p.x > XBC-4) p.x = XBC-4;
-            // 재결합: 랜덤하게 발생
-            if(Math.random() < 0.003) {{
+            // 베이스 소수 캐리어: 브라운 운동 (범위 넓게)
+            vx = (Math.random()-0.5)*3.0;
+            vy = (Math.random()-0.5)*3.0;
+            // 베이스 경계 소프트 클램프
+            if(p.x < XBE+6) p.x += 2;
+            if(p.x > XBC-6) p.x -= 2;
+            // 재결합: 랜덤하게 발생 (플래시)
+            if(Math.random() < 0.004) {{
               recombEvents.push({{x:p.x, y:p.y, t:25}});
-              // 재결합 후 위치 리셋 (베이스 내 다른 위치)
               p.x = Math.random()*(XBC-XBE-10)+XBE+5;
               p.y = randY();
             }}
           }}
         // ── PNP 순방향 활성 ──────────────────────────────────────
-        // 정공: 이미터→컬렉터 방향 (왼→오)
-        // 전자: 베이스 안에서만 브라운 운동
         }} else {{
           if(p.t==='h') {{
             vx = 3.5;
             vy = (Math.random()-0.5)*0.8;
             if(p.x > W) {{ p.x=5; p.zone='E'; }}
           }} else {{
-            vx = (Math.random()-0.5)*1.2;
-            vy = (Math.random()-0.5)*1.2;
-            if(p.x < XBE+4) p.x = XBE+4;
-            if(p.x > XBC-4) p.x = XBC-4;
-            if(Math.random() < 0.003) {{
+            // 베이스 소수 캐리어 브라운 운동
+            vx = (Math.random()-0.5)*3.0;
+            vy = (Math.random()-0.5)*3.0;
+            if(p.x < XBE+6) p.x += 2;
+            if(p.x > XBC-6) p.x -= 2;
+            if(Math.random() < 0.004) {{
               recombEvents.push({{x:p.x, y:p.y, t:25}});
               p.x = Math.random()*(XBC-XBE-10)+XBE+5;
               p.y = randY();
@@ -358,7 +357,7 @@ with row1_right:
 }})();
 </script>
 """
-    components.html(canvas_html, height=310)
+    components.html(canvas_html, height=330)
 
 st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
 
