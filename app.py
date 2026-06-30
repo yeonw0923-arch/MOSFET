@@ -258,22 +258,27 @@ with col_mid:
     s         = np.clip(t / 0.35, 0.0, 1.0)
     barrier_p = s * s * (3 - 2 * s)        # 0→1 부드럽게 올라가 유지
 
+    # 드레인 접합 천이: 채널 끝 높이 → 드레인 레벨로 smoothstep 하강
+    #   (상수로 채우면 채널 끝과 점프가 생겨 ㄱ자 절벽이 됨)
+    td      = np.linspace(0.0, 1.0, len(x_drn))
+    sd      = td * td * (3 - 2 * td)        # 0→1 smoothstep
+
     if device == "NMOS":
         EF_src, EF_drn = Y_OFF, Y_OFF - V            # 드레인 전위↑ → E_F↓
         ec_src_lvl = EF_src + DELTA                  # n+ : E_F ~ E_c
+        ec_drn_lvl = EF_drn + DELTA
         ec_ch  = ec_src_lvl + h_barrier * barrier_p - V * drop
-        ec_all = np.concatenate([np.full_like(x_src, ec_src_lvl),
-                                 ec_ch,
-                                 np.full_like(x_drn, EF_drn + DELTA)])
+        ec_drn = ec_ch[-1] + (ec_drn_lvl - ec_ch[-1]) * sd   # 채널 끝→드레인
+        ec_all = np.concatenate([np.full_like(x_src, ec_src_lvl), ec_ch, ec_drn])
         ev_all = ec_all - Eg
         po_band = ec_all                              # NMOS 핀치오프는 E_c
     else:  # PMOS
         EF_src, EF_drn = Y_OFF, Y_OFF + V            # 드레인 전위↓ → E_F↑
         ev_src_lvl = EF_src - DELTA                  # p+ : E_F ~ E_v
+        ev_drn_lvl = EF_drn - DELTA
         ev_ch  = ev_src_lvl - h_barrier * barrier_p + V * drop
-        ev_all = np.concatenate([np.full_like(x_src, ev_src_lvl),
-                                 ev_ch,
-                                 np.full_like(x_drn, EF_drn - DELTA)])
+        ev_drn = ev_ch[-1] + (ev_drn_lvl - ev_ch[-1]) * sd   # 채널 끝→드레인
+        ev_all = np.concatenate([np.full_like(x_src, ev_src_lvl), ev_ch, ev_drn])
         ec_all = ev_all + Eg
         po_band = ev_all                              # PMOS 핀치오프는 E_v
 
