@@ -315,8 +315,7 @@ with col_mid:
         po_i = len(x_src) + int(0.85 * len(x_ch))
         fig_band.add_annotation(x=x_all[po_i], y=po_band[po_i], text="Pinch-off",
                                 showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.2,
-                                arrowcolor="#e74c3c", ax=16,
-                                ay=(-22 if device == "NMOS" else 22),
+                                arrowcolor="#e74c3c", ax=16, ay=-26,
                                 font=dict(size=8, color="#e74c3c"))
     elif region == "Linear":
         fig_band.add_annotation(x=1.5, y=ch_mid_y, text="Channel Formed<br>(Linear)",
