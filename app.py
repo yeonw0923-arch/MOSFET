@@ -218,206 +218,105 @@ with col_mid:
     st.plotly_chart(fig_iv,use_container_width=True,theme="streamlit")
 
     # ════════════════════════════════════════════════════════
-    #  에너지 밴드 다이어그램 (수정 버전)
-    #
-    #  핵심 수정 사항:
-    #  1) E_F 위치:
-    #     NMOS (p-substrate): E_F = E_v + ~0.15eV (E_v 가까이)
-    #     PMOS (n-substrate): E_F = E_c - ~0.15eV (E_c 가까이)
-    #
-    #  2) 밴드 휨 방향:
-    #     NMOS: V_DS > 0 → 드레인 쪽 전자 에너지 낮아짐 → E_c 하강 (drop < 0)
-    #     PMOS: V_DS > 0 (슬라이더 절댓값) → 실제 V_DS < 0
-    #           드레인 쪽 정공 에너지 낮아짐 → E_c 상승 (drop > 0)
-    #
-    #  3) 차단 모드: V_GS < V_TH → 게이트 전압이 낮아서
-    #     채널 영역 E_c가 위로 굽어야 함 (NMOS 기준)
-    #     → gate_bend: V_GS 증가할수록 채널 E_c 낮아짐
-    #
-    #  4) 소스-드레인 E_F 분리: qV_DS 만큼 정확히 분리
-    #     ef_drn = ef_src - abs_vds (NMOS)
-    #     ef_drn = ef_src + abs_vds (PMOS: 반대 방향)
+    #  에너지 밴드 다이어그램 (Source–Channel–Drain 측면 방향)
+    #  E_F 기준:  NMOS 소스/드레인 = n+ → E_F ~ E_c
+    #             PMOS 소스/드레인 = p+ → E_F ~ E_v
+    #  게이트:    채널 장벽 변조 (Cutoff = 큰 장벽 / 반전 = 장벽 제거)
+    #  V_DS:      NMOS 드레인 밴드 하강 / PMOS 드레인 밴드 상승,
+    #             소스·드레인 E_F 를 qV_DS 만큼 분리
+    #  Saturation: 드레인 근처 강하 집중(핀치오프)
     # ════════════════════════════════════════════════════════
+    Eg       = 1.12
+    SCALE    = 0.22     # eV/V 표시 배율
+    MAX_DROP = 1.10     # 최대 표시 강하량 (eV)
+    DELTA    = 0.12     # |E_c-E_F|(n+) 또는 |E_F-E_v|(p+)
+    Y_OFF    = 2.2      # 표시용 오프셋(물리 의미 없음, y축 양수 유지)
 
-    # ════════════════════════════════════════════════════════
-    #  에너지 밴드 다이어그램 계산 원칙
-    #
-    #  좌표계: x=0(소스) ~ x=1(채널 시작) ~ x=2(채널 끝) ~ x=3(드레인)
-    #  에너지 단위: eV (실제 전압값 직접 사용)
-    #
-    #  [E_F 위치]
-    #  NMOS: p-substrate → 다수 캐리어=정공 → E_F는 E_v 가까이
-    #        ef_src = E_v_src + 0.15  (E_v에서 0.15eV 위)
-    #  PMOS: n-substrate → 다수 캐리어=전자 → E_F는 E_c 가까이
-    #        ef_src = E_c_src - 0.15  (E_c에서 0.15eV 아래)
-    #
-    #  [드레인 E_F 분리]
-    #  NMOS: ef_drn = ef_src - V_DS  (드레인 전위 높음 → 전자 에너지 낮음)
-    #  PMOS: ef_drn = ef_src + V_DS  (드레인 전위 낮음 → 정공 에너지 낮음)
-    #  → 단, 그래프 스케일에 맞게 0.4 배율 적용
-    #
-    #  [E_c 밴드 휨]
-    #  NMOS: V_DS > 0 → 드레인 쪽 E_c 하강 (band_drop < 0)
-    #  PMOS: V_DS > 0 (슬라이더) → 실제 V_DS < 0 → 드레인 쪽 E_c 상승 (band_drop > 0)
-    #
-    #  [채널 영역 게이트 굽힘]
-    #  NMOS 반전층(Linear/Sat): 채널 E_c가 E_F 근처까지 내려옴
-    #    → 반전 시 채널 E_c ≈ ef_src (E_F 근처까지)
-    #    → gate_bend = ef_src - E0  (음수: 채널이 E_F 근처까지 내려옴)
-    #  NMOS 차단: 게이트 전압 낮아서 E_c 위로 굽음 (공핍)
-    #    → gate_bend = +0.15 (작게, E_v > E_F 안 되게)
-    #  PMOS: 반대 방향
-    # ════════════════════════════════════════════════════════
-
-    Eg           = 1.12
-    abs_vds      = abs(vds)
-    abs_vth      = abs(vth)
-    vgs_eff_plot = max(abs(vgs) - abs_vth, 0.0)
-    # 표시 스케일: 5V → 최대 1.2eV 강하로 제한
-    SCALE     = 0.25   # eV/V (5V → 1.25eV)
-    MAX_DROP  = 1.2    # 최대 표시 강하량
-
-    E0    = 2.0        # 소스 E_c 기준
-    Ev0   = E0 - Eg    # 소스 E_v = 0.88
-
-    # ── E_F 소스 위치 ─────────────────────────────────────
-    # NMOS (p-substrate): E_F = E_v + 0.15 ≈ 1.03
-    # PMOS (n-substrate): E_F = E_c - 0.15 ≈ 1.85
-    if device == "NMOS":
-        ef_src_val = Ev0 + 0.15
-    else:
-        ef_src_val = E0 - 0.15
-
-    # ── 드레인 E_F: 소스 대비 V_DS 만큼 분리 (스케일 적용) ──
-    ef_drop = min(abs_vds * SCALE, MAX_DROP)
-    if device == "NMOS":
-        ef_drn_val = ef_src_val - ef_drop
-    else:
-        ef_drn_val = ef_src_val + ef_drop
-
-    # ── V_DS에 의한 드레인 밴드 강하 (E_F와 동일 스케일) ─
-    if device == "NMOS":
-        band_drop = -ef_drop   # 음수: E_c 하강
-    else:
-        band_drop = +ef_drop   # 양수: E_c 상승
-
-    # ── 채널 게이트 굽힘 ──────────────────────────────────
-    # 반전층 형성 시: 채널 E_c가 E_F 근처까지 내려옴
-    # → gate_bend = ef_src_val - E0 (음수, NMOS)
-    # 단, Linear/Saturation 강도 차이 없음 (모드보다 V_GS 크기로 결정)
-    # 차단: 소량의 위로 굽음 (공핍), E_v가 E_F를 넘지 않도록 제한
-    if device == "NMOS":
-        if region == "Cutoff":
-            gate_bend = 0.0
-        else:
-            # 반전층: 채널 E_c가 E_F보다 살짝 위까지만 내려옴
-            # gate_bend * sin(π) 최대 = gate_bend (채널 중앙)
-            # 목표: 채널 중앙 E_c ≈ ef_src_val + 0.3 (E_F 위)
-            # band_drop 기여 빼면 gate_bend ≈ -0.35
-            gate_bend = -0.35
-    else:
-        if region == "Cutoff":
-            gate_bend = 0.0
-        else:
-            gate_bend = +0.35   # PMOS: 반대 방향
-
-    # ── x 좌표 ────────────────────────────────────────────
-    x_src = np.linspace(0.0, 1.0, 50)
-    x_ch  = np.linspace(1.0, 2.0, 80)
-    x_drn = np.linspace(2.0, 3.0, 50)
-    t_ch  = x_ch - 1.0   # 0 → 1 (채널 내 위치)
-
-    # ── V_DS 강하 분포 (모드별 집중 위치) ────────────────
-    if region == "Linear" and vgs_eff_plot > 0:
-        n_exp = 1.0                                        # 균일 기울기
-    elif region == "Saturation" and vgs_eff_plot > 0:
-        ratio = float(np.clip(vds_sat / max(abs_vds, 0.01), 0.15, 0.85))
-        n_exp = 1.0 + (1.0 - ratio) * 3.0                 # 드레인 근처 집중
-    else:
-        n_exp = 3.0                                        # 차단: 드레인 접합 집중
-
-    # ── E_c 프로파일 구성 ────────────────────────────────
-    ec_src = np.full_like(x_src, E0)
+    abs_vds   = abs(vds)
+    overdrive = abs(vgs) - abs(vth)                  # >0 : 반전(채널 형성)
+    V         = float(min(abs_vds * SCALE, MAX_DROP))
 
     if region == "Cutoff":
-        # 차단: 채널 수평 → 드레인 접합에서 급강하 → 드레인 수평
-        ec_ch  = np.full_like(x_ch, E0)
-        t_drn  = np.linspace(0, 1, len(x_drn))
-        ec_drn = E0 + band_drop * (1 - np.exp(-t_drn * 18))
+        h_barrier = float(np.clip(0.25 + 0.45 * max(-overdrive, 0.0), 0.25, 0.75))
     else:
-        # 반전층 (Linear/Saturation):
-        #   채널 E_c를 sigmoid로 소스레벨→드레인레벨 부드럽게 전이
-        #   Linear:     k=4 (완만한 기울기)
-        #   Saturation: k=8 (드레인 근처 급강하, 핀치오프 표현)
-        k_sig = 4.0 if region == "Linear" else 8.0
-        sig   = 1.0 / (1.0 + np.exp(-k_sig * (t_ch - 0.5)))
-        ec_ch  = E0 + band_drop * sig
-        ec_drn = np.full_like(x_drn, E0 + band_drop)
+        h_barrier = 0.0
 
-    ev_src = ec_src - Eg
-    ev_ch  = ec_ch  - Eg
-    ev_drn = ec_drn - Eg
+    n_exp = 3.0 if region == "Saturation" else (1.0 if region == "Linear" else 6.0)
 
-    x_all  = np.concatenate([x_src, x_ch,  x_drn])
-    ec_all = np.concatenate([ec_src, ec_ch, ec_drn])
-    ev_all = np.concatenate([ev_src, ev_ch, ev_drn])
+    x_src = np.linspace(0.0, 1.0, 50)
+    x_ch  = np.linspace(1.0, 2.0, 140)
+    x_drn = np.linspace(2.0, 3.0, 50)
+    t     = np.linspace(0.0, 1.0, len(x_ch))
+    drop  = t ** n_exp          # V_DS 강하 분포
+    hump  = np.sin(np.pi * t)   # 채널 장벽 형상
 
-    ch_mid_ec = float(ec_ch[len(ec_ch) // 2])
+    if device == "NMOS":
+        EF_src, EF_drn = Y_OFF, Y_OFF - V            # 드레인 전위↑ → E_F↓
+        ec_src_lvl = EF_src + DELTA                  # n+ : E_F ~ E_c
+        ec_ch  = ec_src_lvl + h_barrier * hump - V * drop
+        ec_all = np.concatenate([np.full_like(x_src, ec_src_lvl),
+                                 ec_ch,
+                                 np.full_like(x_drn, EF_drn + DELTA)])
+        ev_all = ec_all - Eg
+        po_band = ec_all                              # NMOS 핀치오프는 E_c
+    else:  # PMOS
+        EF_src, EF_drn = Y_OFF, Y_OFF + V            # 드레인 전위↓ → E_F↑
+        ev_src_lvl = EF_src - DELTA                  # p+ : E_F ~ E_v
+        ev_ch  = ev_src_lvl - h_barrier * hump + V * drop
+        ev_all = np.concatenate([np.full_like(x_src, ev_src_lvl),
+                                 ev_ch,
+                                 np.full_like(x_drn, EF_drn - DELTA)])
+        ec_all = ev_all + Eg
+        po_band = ev_all                              # PMOS 핀치오프는 E_v
+
+    x_all = np.concatenate([x_src, x_ch, x_drn])
+    ci    = len(x_src) + len(x_ch) // 2              # 채널 중앙 인덱스
+    ch_mid_y = float((ec_all[ci] + ev_all[ci]) / 2)
 
     fig_band = go.Figure()
-
     fig_band.add_trace(go.Scatter(x=list(x_all), y=list(ec_all), mode='lines',
                                   line=dict(color='#e74c3c', width=2.5), name="E<sub>c</sub>"))
     fig_band.add_trace(go.Scatter(x=list(x_all), y=list(ev_all), mode='lines',
                                   line=dict(color='#2980b9', width=2.5), name="E<sub>v</sub>"))
-
-    # 소스 E_F
-    fig_band.add_trace(go.Scatter(x=[0.0, 1.0], y=[ef_src_val, ef_src_val], mode='lines',
+    fig_band.add_trace(go.Scatter(x=[0.0, 1.0], y=[EF_src, EF_src], mode='lines',
                                   line=dict(color='purple', width=1.8, dash='dot'),
                                   name="E<sub>F</sub> (Source)"))
-    # 드레인 E_F (V_DS > 0 이면 소스와 분리됨)
-    fig_band.add_trace(go.Scatter(x=[2.0, 3.0], y=[ef_drn_val, ef_drn_val], mode='lines',
+    fig_band.add_trace(go.Scatter(x=[2.0, 3.0], y=[EF_drn, EF_drn], mode='lines',
                                   line=dict(color='purple', width=1.8, dash='dot'),
-                                  name="E<sub>F</sub> (Drain)", showlegend=True))
+                                  name="E<sub>F</sub> (Drain)"))
 
     # Eg 화살표
-    fig_band.add_annotation(x=0.15, y=ec_src[0], ay=ev_src[0],
-                             axref='x', ayref='y', xref='x', yref='y',
-                             arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor='gray', ax=0.15)
-    fig_band.add_annotation(x=0.15, y=ev_src[0], ay=ec_src[0],
-                             axref='x', ayref='y', xref='x', yref='y',
-                             arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor='gray', ax=0.15)
-    fig_band.add_annotation(x=0.22, y=(ec_src[0]+ev_src[0])/2,
-                             text=f"Eg={Eg}eV", showarrow=False,
-                             font=dict(size=9, color='gray'), xanchor='left')
+    fig_band.add_annotation(x=0.15, y=ec_all[0], ay=ev_all[0], axref='x', ayref='y',
+                            xref='x', yref='y', arrowhead=2, arrowsize=1,
+                            arrowwidth=1.2, arrowcolor='gray', ax=0.15)
+    fig_band.add_annotation(x=0.15, y=ev_all[0], ay=ec_all[0], axref='x', ayref='y',
+                            xref='x', yref='y', arrowhead=2, arrowsize=1,
+                            arrowwidth=1.2, arrowcolor='gray', ax=0.15)
+    fig_band.add_annotation(x=0.22, y=(ec_all[0] + ev_all[0]) / 2, text=f"Eg={Eg}eV",
+                            showarrow=False, font=dict(size=9, color='gray'), xanchor='left')
 
-    # 동작 영역 레이블
-    if region == "Saturation" and vgs_eff_plot > 0:
-        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
-                                 text="Inversion Layer<br>(Saturation)", showarrow=False,
-                                 font=dict(size=9, color='#27ae60'),
-                                 bgcolor='#eafaf1', bordercolor='#27ae60', borderwidth=1)
-        # 핀치오프 위치
-        po_t = 0.85
-        fig_band.add_annotation(x=1.0+po_t, y=E0+band_drop*(po_t**n_exp),
-                                 text="Pinch-off", showarrow=True,
-                                 arrowhead=2, arrowsize=1, arrowwidth=1.2, arrowcolor="#e74c3c",
-                                 ax=16, ay=(-22 if device=="NMOS" else 22),
-                                 font=dict(size=8, color="#e74c3c"))
-    elif region == "Linear" and vgs_eff_plot > 0:
-        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
-                                 text="Channel Formed<br>(Linear)", showarrow=False,
-                                 font=dict(size=9, color='#f39c12'),
-                                 bgcolor='#fef9e7', bordercolor='#f39c12', borderwidth=1)
-    elif region == "Cutoff":
-        fig_band.add_annotation(x=1.5, y=ch_mid_ec,
-                                 text="No Channel<br>(Cutoff)", showarrow=False,
-                                 font=dict(size=9, color='#ef4444'),
-                                 bgcolor='#fff0f0', bordercolor='#ef4444', borderwidth=1)
+    if region == "Saturation":
+        fig_band.add_annotation(x=1.5, y=ch_mid_y, text="Inversion Layer<br>(Saturation)",
+                                showarrow=False, font=dict(size=9, color='#27ae60'),
+                                bgcolor='#eafaf1', bordercolor='#27ae60', borderwidth=1)
+        po_i = len(x_src) + int(0.85 * len(x_ch))
+        fig_band.add_annotation(x=x_all[po_i], y=po_band[po_i], text="Pinch-off",
+                                showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.2,
+                                arrowcolor="#e74c3c", ax=16,
+                                ay=(-22 if device == "NMOS" else 22),
+                                font=dict(size=8, color="#e74c3c"))
+    elif region == "Linear":
+        fig_band.add_annotation(x=1.5, y=ch_mid_y, text="Channel Formed<br>(Linear)",
+                                showarrow=False, font=dict(size=9, color='#f39c12'),
+                                bgcolor='#fef9e7', bordercolor='#f39c12', borderwidth=1)
+    else:
+        fig_band.add_annotation(x=1.5, y=ch_mid_y, text="No Channel<br>(Cutoff)",
+                                showarrow=False, font=dict(size=9, color='#ef4444'),
+                                bgcolor='#fff0f0', bordercolor='#ef4444', borderwidth=1)
 
     fig_band.update_layout(
         height=320, margin=dict(l=10, r=10, t=40, b=10),
-        xaxis=dict(tickvals=[0.5,1.5,2.5], ticktext=["Source","Channel","Drain"],
+        xaxis=dict(tickvals=[0.5, 1.5, 2.5], ticktext=["Source", "Channel", "Drain"],
                    tickfont=dict(size=10), showgrid=True, gridcolor='#f1f5f9'),
         yaxis=dict(title="Energy (eV)", title_font=dict(size=10),
                    showgrid=True, gridcolor='#f1f5f9'),
