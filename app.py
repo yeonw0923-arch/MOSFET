@@ -265,23 +265,22 @@ with col_mid:
 
     if device == "NMOS":
         EF_src, EF_drn = Y_OFF, Y_OFF - V            # 드레인 전위↑ → E_F↓
-        ec_src_lvl = EF_src + DELTA                  # n+ : E_F ~ E_c
+        ec_src_lvl = EF_src + DELTA                  # n+ : E_F ~ E_c (소스)
+        ec_drn_lvl = EF_drn + DELTA                  # n+ : E_F ~ E_c (드레인)
         ec_ch  = ec_src_lvl + h_barrier * barrier_p - V * drop
-        # 차단: 드레인 천이는 장벽 plateau 기준으로 V 만큼 하강 (골짜기 방지)
-        #       그 외: E_F(드레인) 기준 절대 레벨로 하강
-        ec_drn_lvl = (ec_ch[-1] - V) if region == "Cutoff" else (EF_drn + DELTA)
-        ec_drn = ec_ch[-1] + (ec_drn_lvl - ec_ch[-1]) * sd   # 채널 끝→드레인
+        # 채널 끝 → 드레인 레벨(E_F+DELTA) 로 smoothstep 천이
+        #   모든 영역 공통: 드레인 밴드는 항상 E_F 에서 DELTA 간격 유지
+        ec_drn = ec_ch[-1] + (ec_drn_lvl - ec_ch[-1]) * sd
         ec_all = np.concatenate([np.full_like(x_src, ec_src_lvl), ec_ch, ec_drn])
         ev_all = ec_all - Eg
         po_band = ec_all                              # NMOS 핀치오프는 E_c
     else:  # PMOS
         EF_src, EF_drn = Y_OFF, Y_OFF + V            # 드레인 전위↓ → E_F↑
-        ev_src_lvl = EF_src - DELTA                  # p+ : E_F ~ E_v
+        ev_src_lvl = EF_src - DELTA                  # p+ : E_F ~ E_v (소스)
+        ev_drn_lvl = EF_drn - DELTA                  # p+ : E_F ~ E_v (드레인)
         ev_ch  = ev_src_lvl - h_barrier * barrier_p + V * drop
-        # 차단: 드레인 천이는 장벽 plateau 기준으로 V 만큼 상승 (골짜기 방지)
-        #       그 외: E_F(드레인) 기준 절대 레벨로 상승
-        ev_drn_lvl = (ev_ch[-1] + V) if region == "Cutoff" else (EF_drn - DELTA)
-        ev_drn = ev_ch[-1] + (ev_drn_lvl - ev_ch[-1]) * sd   # 채널 끝→드레인
+        # 채널 끝 → 드레인 레벨(E_F-DELTA) 로 smoothstep 천이
+        ev_drn = ev_ch[-1] + (ev_drn_lvl - ev_ch[-1]) * sd
         ev_all = np.concatenate([np.full_like(x_src, ev_src_lvl), ev_ch, ev_drn])
         ec_all = ev_all + Eg
         po_band = ev_all                              # PMOS 핀치오프는 E_v
