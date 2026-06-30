@@ -248,12 +248,20 @@ with col_mid:
     x_drn = np.linspace(2.0, 3.0, 50)
     t     = np.linspace(0.0, 1.0, len(x_ch))
     drop  = t ** n_exp          # V_DS 강하 분포
-    hump  = np.sin(np.pi * t)   # 채널 장벽 형상
+    # 차단 시 채널 내 V_DS 강하 제거 → 장벽이 평탄하게 유지되고
+    #   V_DS 강하는 드레인 접합(x=2~3)에만 반영됨
+    if region == "Cutoff":
+        drop = np.zeros_like(t)
+
+    # 차단 장벽: 소스 쪽에서 올라가 plateau 유지 (sin hump 아님)
+    #   smoothstep 으로 0→1 상승 후 채널 내내 그 높이 유지
+    s         = np.clip(t / 0.35, 0.0, 1.0)
+    barrier_p = s * s * (3 - 2 * s)        # 0→1 부드럽게 올라가 유지
 
     if device == "NMOS":
         EF_src, EF_drn = Y_OFF, Y_OFF - V            # 드레인 전위↑ → E_F↓
         ec_src_lvl = EF_src + DELTA                  # n+ : E_F ~ E_c
-        ec_ch  = ec_src_lvl + h_barrier * hump - V * drop
+        ec_ch  = ec_src_lvl + h_barrier * barrier_p - V * drop
         ec_all = np.concatenate([np.full_like(x_src, ec_src_lvl),
                                  ec_ch,
                                  np.full_like(x_drn, EF_drn + DELTA)])
@@ -262,7 +270,7 @@ with col_mid:
     else:  # PMOS
         EF_src, EF_drn = Y_OFF, Y_OFF + V            # 드레인 전위↓ → E_F↑
         ev_src_lvl = EF_src - DELTA                  # p+ : E_F ~ E_v
-        ev_ch  = ev_src_lvl - h_barrier * hump + V * drop
+        ev_ch  = ev_src_lvl - h_barrier * barrier_p + V * drop
         ev_all = np.concatenate([np.full_like(x_src, ev_src_lvl),
                                  ev_ch,
                                  np.full_like(x_drn, EF_drn - DELTA)])
